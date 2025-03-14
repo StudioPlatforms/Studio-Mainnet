@@ -2,17 +2,22 @@
 
 # Enhanced Blockchain Mining Monitor Script
 # This script checks if mining is active and restarts it if needed
+# Created: March 13, 2025
+# Modified: March 14, 2025 - Added peer alert throttling and improved block progress detection
 
 LOG_FILE="/var/log/blockchain_monitor.log"
 CHECK_INTERVAL=30  # Check every 30 seconds
-ALERT_EMAIL="developer@example.com"  # Replace with your email address
+ALERT_EMAIL="laurent@studio-blockchain.com"  # Alert email address
 CONSECUTIVE_FAILURES_THRESHOLD=3
 PEER_ALERT_INTERVAL=3600  # Send peer alerts at most once per hour (in seconds)
 
-# Initialize counters
+# Initialize counters and variables
 consecutive_failures=0
 consecutive_no_peers=0
 last_peer_alert_time=0
+last_block_number=""
+last_block_check_time=0
+BLOCK_PROGRESS_INTERVAL=300  # Check block progress every 5 minutes (in seconds)
 
 log_message() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
@@ -57,6 +62,44 @@ check_node_syncing() {
     else
         return 1  # Node is not syncing
     fi
+}
+
+check_block_progress() {
+    # Get current block number
+    local current_block=$(curl -s -X POST -H "Content-Type: application/json" \
+        --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+        http://localhost:8545 | grep -o '0x[a-f0-9]*')
+    
+    # Get current time
+    local current_time=$(date +%s)
+    
+    # If we have a previous block number and enough time has passed
+    if [ ! -z "$last_block_number" ] && [ ! -z "$current_block" ] && \
+       [ $((current_time - last_block_check_time)) -ge $BLOCK_PROGRESS_INTERVAL ]; then
+        
+        # Convert hex to decimal for comparison
+        local last_block_dec=$((16#${last_block_number:2}))
+        local current_block_dec=$((16#${current_block:2}))
+        
+        log_message "Checking block progress: Last block: $last_block_number ($last_block_dec), Current block: $current_block ($current_block_dec)"
+        
+        if [ $current_block_dec -gt $last_block_dec ]; then
+            log_message "Block number is increasing - node is making progress"
+            return 0  # Block number is increasing
+        else
+            log_message "Block number is not increasing - node may be stuck"
+            return 1  # Block number is not increasing
+        fi
+    fi
+    
+    # Update last block number and check time
+    if [ ! -z "$current_block" ]; then
+        last_block_number=$current_block
+        last_block_check_time=$current_time
+    fi
+    
+    # If we don't have enough data yet, assume progress is happening
+    return 0
 }
 
 restart_node() {
@@ -162,12 +205,12 @@ check_and_restart_mining() {
     
     log_message "Current block number: $BLOCK_NUMBER"
     
-    # Check if node is syncing
-    if check_node_syncing; then
-        log_message "Node is syncing with the network - this indicates connectivity is working"
-        consecutive_no_peers=0
+    # First check if node is syncing or making block progress
+    if check_node_syncing || check_block_progress; then
+        log_message "Node is syncing or making block progress - this indicates connectivity is working"
+        consecutive_no_peers=0  # Reset counter since connectivity is working
     else
-        # Check peer count only if not syncing
+        # Only check peer count if not syncing and not making block progress
         PEER_COUNT=$(curl -s -X POST -H "Content-Type: application/json" \
             --data '{"jsonrpc":"2.0","method":"net_peerCount","params":[],"id":1}' \
             http://localhost:8545 | grep -o '0x[a-f0-9]*')
@@ -178,7 +221,7 @@ check_and_restart_mining() {
             log_message "Peer count: $PEER_COUNT_DEC"
             
             if [ $PEER_COUNT_DEC -eq 0 ]; then
-                log_message "Warning: No peers connected and node is not syncing!"
+                log_message "Warning: No peers connected and node is not making progress!"
                 consecutive_no_peers=$((consecutive_no_peers + 1))
                 
                 # Only send alert if it's been more than PEER_ALERT_INTERVAL seconds since the last alert
@@ -186,7 +229,7 @@ check_and_restart_mining() {
                 time_since_last_alert=$((current_time - last_peer_alert_time))
                 
                 if [ $time_since_last_alert -ge $PEER_ALERT_INTERVAL ]; then
-                    send_alert "No Network Connectivity" "The blockchain node has no peers connected and is not syncing for $consecutive_no_peers checks. This indicates a network issue."
+                    send_alert "No Network Connectivity" "The blockchain node has no peers connected and is not making progress for $consecutive_no_peers checks. This indicates a network issue."
                     last_peer_alert_time=$current_time
                 else
                     log_message "Suppressing peer alert (sent one $time_since_last_alert seconds ago, threshold is $PEER_ALERT_INTERVAL seconds)"
@@ -215,6 +258,7 @@ log_message "Starting enhanced blockchain monitor..."
 log_message "Monitoring interval: $CHECK_INTERVAL seconds"
 log_message "Alert email: $ALERT_EMAIL"
 log_message "Peer alert interval: $PEER_ALERT_INTERVAL seconds"
+log_message "Block progress check interval: $BLOCK_PROGRESS_INTERVAL seconds"
 
 while true; do
     check_and_restart_mining

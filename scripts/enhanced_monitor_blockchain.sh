@@ -7,7 +7,7 @@
 
 LOG_FILE="/var/log/blockchain_monitor.log"
 CHECK_INTERVAL=30  # Check every 30 seconds
-ALERT_EMAIL="laurent@studio-blockchain.com"  # Alert email address
+ALERT_EMAIL="developer@example.com"  # Alert email address
 CONSECUTIVE_FAILURES_THRESHOLD=3
 PEER_ALERT_INTERVAL=3600  # Send peer alerts at most once per hour (in seconds)
 
@@ -127,7 +127,7 @@ restart_node() {
         
         # Try to start the node directly as a fallback
         log_message "Attempting to start node directly..."
-        nohup /bin/bash /root/studio-mainnet/node/scripts/start.sh > /root/studio-mainnet/node/direct_start.log 2>&1 &
+        nohup /bin/bash $HOME/studio-mainnet/node/scripts/start.sh > $HOME/studio-mainnet/node/direct_start.log 2>&1 &
         
         # Wait for the node to start
         sleep 15
@@ -172,7 +172,7 @@ check_and_restart_mining() {
         
         # Set etherbase address
         curl -s -X POST -H "Content-Type: application/json" \
-            --data '{"jsonrpc":"2.0","method":"miner_setEtherbase","params":["0x856157992b74a799d7a09f611f7c78af4f26d309"],"id":1}' \
+            --data '{"jsonrpc":"2.0","method":"miner_setEtherbase","params":["0x0000000000000000000000000000000000000000"],"id":1}' \
             http://localhost:8545 > /dev/null
         
         # Start mining
@@ -248,7 +248,7 @@ check_and_restart_mining() {
     
     if [ -n "$MALWARE_PROCESSES" ]; then
         log_message "WARNING: Malware processes detected! Running removal script..."
-        bash /root/remove_crypto_malware.sh
+        bash $HOME/remove_crypto_malware.sh
         send_alert "Malware Detected" "Cryptocurrency mining malware detected and removal script executed."
     fi
 }

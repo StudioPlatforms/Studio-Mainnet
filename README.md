@@ -63,6 +63,17 @@ The repository includes a monitoring script that checks if your node is running 
 
 If you encounter any issues, check the [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) file for common problems and solutions.
 
+## Technical Notes
+
+### Bootstrap Node
+The `static-nodes.json.template` file contains a bootstrap node IP address (173.249.16.253) which is a permanent node on the Studio Blockchain network. This node helps your validator connect to the network initially.
+
+### Example Validator Address
+The monitoring script contains an example Ethereum address (0x856157992b74a799d7a09f611f7c78af4f26d309) which will be replaced with your own validator address during the setup process.
+
+### Configuration Paths
+The service files and scripts contain default paths that will be automatically updated during the setup process to match your system's configuration.
+
 ## Contributing
 
 We welcome contributions to improve the Studio Blockchain network. Please see the [CONTRIBUTING.md](docs/CONTRIBUTING.md) file for guidelines.

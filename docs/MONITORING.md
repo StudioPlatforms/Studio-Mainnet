@@ -17,7 +17,7 @@ The monitoring system checks your node's health at regular intervals and sends a
 
 - Node connectivity (is the node running and responding to RPC calls?)
 - Mining status (is the node actively mining blocks?)
-- Peer connections (is the node connected to other nodes in the network?)
+- Network connectivity (is the node syncing with the network or connected to peers?)
 - Block progression (is the node producing/receiving new blocks?)
 - System security (checks for known cryptocurrency mining malware)
 
@@ -129,8 +129,9 @@ The monitoring script logs its activities to `/var/log/blockchain_monitor.log`. 
 - `Mining is not active. Restarting...`: Mining has stopped, and the script is trying to restart it.
 - `Mining is active.`: Mining is working correctly.
 - `Current block number: 0x...`: The current block number in hexadecimal.
+- `Node is syncing with the network - this indicates connectivity is working`: The node is syncing blocks, which means it has network connectivity.
 - `Peer count: N`: The number of peers the node is connected to.
-- `Warning: No peers connected!`: The node has no peer connections.
+- `Warning: No peers connected and node is not syncing!`: The node has no peer connections and is not syncing, which indicates a network issue.
 - `ALERT: [Subject] - [Message]`: An alert has been sent.
 - `Suppressing peer alert (sent one X seconds ago, threshold is Y seconds)`: An alert is being suppressed because a similar alert was sent recently.
 
@@ -147,7 +148,7 @@ Here are some parameters you might want to adjust:
 - `CHECK_INTERVAL`: How often the script checks the node (in seconds).
 - `ALERT_EMAIL`: The email address to send alerts to.
 - `CONSECUTIVE_FAILURES_THRESHOLD`: How many consecutive mining failures before sending an alert.
-- `PEER_ALERT_INTERVAL`: How often to send alerts about peer connection issues (in seconds).
+- `PEER_ALERT_INTERVAL`: How often to send alerts about network connectivity issues (in seconds).
 
 After making changes, restart the monitoring service:
 

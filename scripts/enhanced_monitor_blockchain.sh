@@ -2,12 +2,10 @@
 
 # Enhanced Blockchain Mining Monitor Script
 # This script checks if mining is active and restarts it if needed
-# Created: March 13, 2025
-# Modified: March 14, 2025 - Added peer alert throttling
 
 LOG_FILE="/var/log/blockchain_monitor.log"
 CHECK_INTERVAL=30  # Check every 30 seconds
-ALERT_EMAIL="laurent@studio-blockchain.com"  # Alert email address
+ALERT_EMAIL="developer@example.com"  # Replace with your email address
 CONSECUTIVE_FAILURES_THRESHOLD=3
 PEER_ALERT_INTERVAL=3600  # Send peer alerts at most once per hour (in seconds)
 
@@ -45,6 +43,19 @@ check_node_running() {
         return 1  # Node is not responding
     else
         return 0  # Node is responding
+    fi
+}
+
+check_node_syncing() {
+    # Check if the node is syncing
+    local response=$(curl -s -X POST -H "Content-Type: application/json" \
+        --data '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}' \
+        http://localhost:8545)
+    
+    if [[ "$response" == *"currentBlock"* ]]; then
+        return 0  # Node is syncing
+    else
+        return 1  # Node is not syncing
     fi
 }
 
@@ -151,36 +162,42 @@ check_and_restart_mining() {
     
     log_message "Current block number: $BLOCK_NUMBER"
     
-    # Check peer count
-    PEER_COUNT=$(curl -s -X POST -H "Content-Type: application/json" \
-        --data '{"jsonrpc":"2.0","method":"net_peerCount","params":[],"id":1}' \
-        http://localhost:8545 | grep -o '0x[a-f0-9]*')
-    
-    # Convert hex to decimal
-    if [ ! -z "$PEER_COUNT" ]; then
-        PEER_COUNT_DEC=$((16#${PEER_COUNT:2}))
-        log_message "Peer count: $PEER_COUNT_DEC"
+    # Check if node is syncing
+    if check_node_syncing; then
+        log_message "Node is syncing with the network - this indicates connectivity is working"
+        consecutive_no_peers=0
+    else
+        # Check peer count only if not syncing
+        PEER_COUNT=$(curl -s -X POST -H "Content-Type: application/json" \
+            --data '{"jsonrpc":"2.0","method":"net_peerCount","params":[],"id":1}' \
+            http://localhost:8545 | grep -o '0x[a-f0-9]*')
         
-        if [ $PEER_COUNT_DEC -eq 0 ]; then
-            log_message "Warning: No peers connected!"
-            consecutive_no_peers=$((consecutive_no_peers + 1))
+        # Convert hex to decimal
+        if [ ! -z "$PEER_COUNT" ]; then
+            PEER_COUNT_DEC=$((16#${PEER_COUNT:2}))
+            log_message "Peer count: $PEER_COUNT_DEC"
             
-            # Only send alert if it's been more than PEER_ALERT_INTERVAL seconds since the last alert
-            current_time=$(date +%s)
-            time_since_last_alert=$((current_time - last_peer_alert_time))
-            
-            if [ $time_since_last_alert -ge $PEER_ALERT_INTERVAL ]; then
-                send_alert "No Peers Connected" "The blockchain node has no peers connected for $consecutive_no_peers checks. This may affect synchronization."
-                last_peer_alert_time=$current_time
+            if [ $PEER_COUNT_DEC -eq 0 ]; then
+                log_message "Warning: No peers connected and node is not syncing!"
+                consecutive_no_peers=$((consecutive_no_peers + 1))
+                
+                # Only send alert if it's been more than PEER_ALERT_INTERVAL seconds since the last alert
+                current_time=$(date +%s)
+                time_since_last_alert=$((current_time - last_peer_alert_time))
+                
+                if [ $time_since_last_alert -ge $PEER_ALERT_INTERVAL ]; then
+                    send_alert "No Network Connectivity" "The blockchain node has no peers connected and is not syncing for $consecutive_no_peers checks. This indicates a network issue."
+                    last_peer_alert_time=$current_time
+                else
+                    log_message "Suppressing peer alert (sent one $time_since_last_alert seconds ago, threshold is $PEER_ALERT_INTERVAL seconds)"
+                fi
             else
-                log_message "Suppressing peer alert (sent one $time_since_last_alert seconds ago, threshold is $PEER_ALERT_INTERVAL seconds)"
+                # Reset counter if peers are connected
+                consecutive_no_peers=0
             fi
         else
-            # Reset counter if peers are connected
-            consecutive_no_peers=0
+            log_message "Warning: Could not get peer count!"
         fi
-    else
-        log_message "Warning: Could not get peer count!"
     fi
     
     # Check for malware (just in case)

@@ -1,9 +1,12 @@
 #!/bin/bash
-echo "Starting Studio Blockchain Mainnet Network..."
 
+echo "Starting Studio Blockchain Mainnet Node..."
+
+# Get the validator address
 VALIDATOR_ADDRESS=$(cat ~/studio-mainnet/node/address.txt)
 echo "Validator address: $VALIDATOR_ADDRESS"
 
+# Start the blockchain node
 geth --datadir ~/studio-mainnet/node/data \
 --networkid 240241 \
 --port 30303 \
@@ -32,4 +35,4 @@ geth --datadir ~/studio-mainnet/node/data \
 --txpool.globalslots "16384" \
 --txpool.accountqueue "64" \
 --txpool.globalqueue "1024" \
---verbosity 4
+--verbosity 3

@@ -1,0 +1,23 @@
+[Unit]
+Description=Studio Blockchain Validator Monitoring Service
+After=geth-studio-validator.service
+Wants=geth-studio-validator.service
+
+[Service]
+Type=simple
+User=%i
+ExecStart=/home/%i/studio-validator/health-check.sh
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=blockchain-monitor-validator
+
+# Hardening measures
+PrivateTmp=true
+ProtectSystem=full
+NoNewPrivileges=true
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target

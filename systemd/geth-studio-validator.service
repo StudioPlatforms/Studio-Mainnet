@@ -1,0 +1,29 @@
+[Unit]
+Description=Studio Blockchain Validator Node
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=%i
+ExecStart=/home/%i/studio-validator/node/scripts/start.sh
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=geth-studio-validator
+LimitNOFILE=65536
+LimitNPROC=65536
+
+# Ensure data integrity during shutdown
+KillSignal=SIGINT
+TimeoutStopSec=300
+
+# Hardening measures
+PrivateTmp=true
+ProtectSystem=full
+NoNewPrivileges=true
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target

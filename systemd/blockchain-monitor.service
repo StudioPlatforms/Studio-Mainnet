@@ -1,0 +1,23 @@
+[Unit]
+Description=Studio Blockchain Monitoring Service
+After=geth-studio.service
+Wants=geth-studio.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/bin/bash /root/studio-mainnet/node/monitor_blockchain.sh
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=blockchain-monitor
+
+# Hardening measures
+PrivateTmp=true
+ProtectSystem=full
+NoNewPrivileges=true
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target

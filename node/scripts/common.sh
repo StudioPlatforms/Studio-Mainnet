@@ -13,6 +13,7 @@ RED="\033[31m"
 GREEN="\033[32m"
 YELLOW="\033[33m"
 BLUE="\033[34m"
+CYAN="\033[36m"
 RESET="\033[0m"
 
 # Default values
@@ -73,7 +74,13 @@ log() {
         "WARN") color=$YELLOW ;;
         "ERROR") color=$RED ;;
         "STEP") color=$BLUE ;;
+        "DEBUG") color=$CYAN ;;
     esac
+    
+    # Only print DEBUG messages if DEBUG is enabled
+    if [ "$level" = "DEBUG" ] && [ -z "$DEBUG" ]; then
+        return
+    fi
     
     echo -e "[$(date '+%Y-%m-%d %H:%M:%S')] ${color}${level}${RESET}: ${message}"
 }
@@ -146,6 +153,10 @@ parse_arguments() {
             --backup-dir)
                 BACKUP_DIR="$2"
                 shift 2
+                ;;
+            --debug)
+                DEBUG=true
+                shift
                 ;;
             *)
                 log "ERROR" "Unknown option: $1"
@@ -223,3 +234,4 @@ export PASSWORD_FILE
 export BOOTNODE
 export MAIN_VALIDATOR
 export SCRIPTS_DIR
+export DEBUG

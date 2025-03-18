@@ -125,13 +125,22 @@ run_setup() {
     
     # Setup validator account
     log "INFO" "Setting up validator account..."
-    "$SCRIPT_DIR/account.sh"
+    source "$SCRIPT_DIR/account.sh"
     
-    # Get validator account
-    VALIDATOR_ACCOUNT=$(cat "$DATADIR/validator-address.txt" 2>/dev/null || echo "")
+    # Get validator account if not set by account.sh
+    if [ -z "$VALIDATOR_ACCOUNT" ]; then
+        if [ -f "$DATADIR/validator-address.txt" ]; then
+            VALIDATOR_ACCOUNT=$(cat "$DATADIR/validator-address.txt")
+            export VALIDATOR_ACCOUNT
+            log "INFO" "Using validator account: $VALIDATOR_ACCOUNT"
+        else
+            log "WARN" "Validator account not found. Network setup may fail."
+        fi
+    fi
     
     # Setup network configuration
     log "INFO" "Setting up network configuration..."
+    export VALIDATOR_ACCOUNT
     "$SCRIPT_DIR/network.sh"
     
     # Setup monitoring

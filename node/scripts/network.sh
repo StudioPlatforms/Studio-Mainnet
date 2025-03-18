@@ -49,6 +49,14 @@ setup_genesis() {
         log "WARN" "Clique period is less than 5 seconds. This may cause consensus issues."
     fi
     
+    # Try to get validator address from file if not set
+    if [ -z "$VALIDATOR_ACCOUNT" ]; then
+        if [ -f "$DATADIR/validator-address.txt" ]; then
+            VALIDATOR_ACCOUNT=$(cat "$DATADIR/validator-address.txt")
+            log "INFO" "Found validator address in file: $VALIDATOR_ACCOUNT"
+        fi
+    fi
+    
     # Customize genesis file with validator address
     if [ -n "$VALIDATOR_ACCOUNT" ]; then
         log "INFO" "Customizing genesis file with validator address: $VALIDATOR_ACCOUNT"
@@ -59,8 +67,26 @@ setup_genesis() {
         # Create a temporary file
         local temp_file=$(mktemp)
         
-        # Replace placeholder with validator address
-        sed "s/YOUR_VALIDATOR_ADDRESS_HERE/$validator_address_no_prefix/g" "$GENESIS_FILE" > "$temp_file"
+        # Replace placeholder with validator address in extradata field
+        # First check if the field is "extradata" or "extraData"
+        if grep -q "extradata" "$GENESIS_FILE"; then
+            sed "s/YOUR_VALIDATOR_ADDRESS_HERE/$validator_address_no_prefix/g" "$GENESIS_FILE" > "$temp_file"
+        elif grep -q "extraData" "$GENESIS_FILE"; then
+            sed "s/YOUR_VALIDATOR_ADDRESS_HERE/$validator_address_no_prefix/g" "$GENESIS_FILE" > "$temp_file"
+        else
+            # If neither field exists, add the extradata field
+            jq --arg addr "$validator_address_no_prefix" '.extradata = "0x0000000000000000000000000000000000000000000000000000000000000000" + $addr + "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"' "$GENESIS_FILE" > "$temp_file"
+        fi
+        
+        # Also replace in the alloc section
+        if grep -q "YOUR_VALIDATOR_ADDRESS_HERE" "$temp_file"; then
+            sed "s/YOUR_VALIDATOR_ADDRESS_HERE/$validator_address_no_prefix/g" "$temp_file" > "$temp_file.2"
+            mv "$temp_file.2" "$temp_file"
+        else
+            # If the placeholder doesn't exist in alloc, add the validator address to alloc
+            jq --arg addr "$validator_address_no_prefix" '.alloc[$addr] = {"balance": "100000000000000000000000000"}' "$temp_file" > "$temp_file.2"
+            mv "$temp_file.2" "$temp_file"
+        fi
         
         # Check if the replacement was successful
         if grep -q "$validator_address_no_prefix" "$temp_file"; then
@@ -73,6 +99,12 @@ setup_genesis() {
     else
         log "WARN" "Validator account not set. Please manually customize the genesis file."
     fi
+    
+    # Fix any issues with the genesis file
+    # Ensure extradata is properly formatted
+    local temp_file=$(mktemp)
+    jq '.' "$GENESIS_FILE" > "$temp_file"
+    mv "$temp_file" "$GENESIS_FILE"
     
     # Initialize the blockchain with the genesis file
     log "INFO" "Initializing blockchain with genesis file"

@@ -26,13 +26,21 @@ setup_validator_account() {
         
         if [ "$ACCOUNT_CHOICE" = "2" ]; then
             log "INFO" "Please enter your private key (without 0x prefix):"
-            read -s IMPORT_KEY
+            read -r IMPORT_KEY
+            echo
         fi
     fi
     
     # Check if we're importing a private key
-    if [ -n "$IMPORT_KEY" ]; then
+    if [ -n "$IMPORT_KEY" ] || [ "$ACCOUNT_CHOICE" = "2" ]; then
         log "INFO" "Importing private key"
+        
+        # If IMPORT_KEY is empty but user selected option 2, ask again
+        if [ -z "$IMPORT_KEY" ]; then
+            log "INFO" "Please enter your private key (without 0x prefix):"
+            read -r IMPORT_KEY
+            echo
+        fi
         
         # Create a temporary file for the private key
         local key_file=$(mktemp)
@@ -126,6 +134,9 @@ setup_validator_account() {
     # Save the validator account address to a file for reference
     echo "$VALIDATOR_ACCOUNT" > "$DATADIR/validator-address.txt"
     log "INFO" "Saved validator address to $DATADIR/validator-address.txt"
+    
+    # Export the validator account for other scripts to use
+    export VALIDATOR_ACCOUNT
     
     # Verify the account exists in the keystore
     if ! ls "$DATADIR/keystore" | grep -q "$(echo "$VALIDATOR_ACCOUNT" | cut -c 3- | tr '[:upper:]' '[:lower:]')"; then

@@ -126,6 +126,7 @@ run_setup() {
     # Setup validator account
     log "INFO" "Setting up validator account..."
     source "$SCRIPT_DIR/account.sh"
+    setup_validator_account
     
     # Get validator account if not set by account.sh
     if [ -z "$VALIDATOR_ACCOUNT" ]; then

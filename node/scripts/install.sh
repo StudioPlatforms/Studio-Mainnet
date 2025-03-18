@@ -73,14 +73,31 @@ install_dependencies() {
 install_geth() {
     log "STEP" "Installing Geth"
     
-    # Check if geth is already installed with the correct version
+    # Set default Geth version if not set
+    if [ -z "$GETH_VERSION" ]; then
+        GETH_VERSION="1.13.14"
+        log "WARN" "GETH_VERSION not set, using default: $GETH_VERSION"
+    fi
+    
+    # Check if geth is already installed
     if command_exists geth; then
         local installed_version=$(geth version | grep "Version:" | cut -d' ' -f2)
-        if [ "$installed_version" = "$GETH_VERSION" ]; then
-            log "INFO" "Geth version $GETH_VERSION is already installed"
-            return
+        log "INFO" "Geth is already installed (version $installed_version)"
+        
+        # If the installed version is close enough to the target version, use it
+        if [[ "$installed_version" == *"$GETH_VERSION"* ]]; then
+            log "INFO" "Using existing Geth installation"
+            return 0
         else
-            log "INFO" "Upgrading Geth from version $installed_version to $GETH_VERSION"
+            log "INFO" "Existing Geth version is different from target version"
+            
+            # Ask user if they want to continue with existing version
+            read -p "Continue with existing Geth version? (y/n): " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                log "INFO" "Using existing Geth installation"
+                return 0
+            fi
         fi
     fi
     
@@ -106,7 +123,14 @@ install_geth() {
     
     if ! wget -q "$download_url"; then
         log "ERROR" "Failed to download Geth. Please check the version and try again."
-        exit 1
+        
+        # If Geth is already installed, continue with existing version
+        if command_exists geth; then
+            log "INFO" "Continuing with existing Geth installation"
+            return 0
+        else
+            exit 1
+        fi
     fi
     
     tar -xzf "geth-$os-$arch-$GETH_VERSION-stable.tar.gz"

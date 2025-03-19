@@ -44,6 +44,13 @@ check_and_restart_mining() {
     else
         log_message "Mining is active."
     fi
+    
+    # Get current block number
+    BLOCK_NUMBER=$(curl -s -X POST -H "Content-Type: application/json" \
+        --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+        http://localhost:8545 | grep -o '0x[a-f0-9]*')
+    
+    log_message "Current block number: $BLOCK_NUMBER"
 }
 
 check_node_health() {
@@ -66,6 +73,48 @@ check_node_health() {
         log_message "Service restart initiated."
         return
     fi
+    
+    # Check if node has peers
+    PEER_COUNT=$(curl -s -X POST -H "Content-Type: application/json" \
+        --data '{"jsonrpc":"2.0","method":"net_peerCount","params":[],"id":1}' \
+        http://localhost:8545 | grep -o '0x[a-f0-9]*')
+    
+    # Convert hex to decimal
+    PEER_COUNT_DEC=$((16#${PEER_COUNT:2}))
+    log_message "Current peer count: $PEER_COUNT_DEC"
+    
+    # Check if blocks are being produced
+    CURRENT_BLOCK=$(curl -s -X POST -H "Content-Type: application/json" \
+        --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+        http://localhost:8545 | grep -o '0x[a-f0-9]*')
+    
+    # Save current block number
+    echo "$CURRENT_BLOCK" > /tmp/current_block.txt
+    
+    # Check if block number has increased since last check
+    if [ -f /tmp/previous_block.txt ]; then
+        PREVIOUS_BLOCK=$(cat /tmp/previous_block.txt)
+        if [ "$CURRENT_BLOCK" == "$PREVIOUS_BLOCK" ]; then
+            log_message "WARNING: Block number has not increased since last check. Checking again in next cycle..."
+            # We'll wait for one more cycle before taking action
+            if [ -f /tmp/block_stalled.txt ]; then
+                log_message "ERROR: Block production appears stalled. Restarting service..."
+                systemctl restart geth-studio-mainnet
+                log_message "Service restart initiated."
+                rm /tmp/block_stalled.txt
+            else
+                touch /tmp/block_stalled.txt
+            fi
+        else
+            # Block number has increased, remove stalled flag if it exists
+            if [ -f /tmp/block_stalled.txt ]; then
+                rm /tmp/block_stalled.txt
+            fi
+        fi
+    fi
+    
+    # Save current block as previous for next check
+    echo "$CURRENT_BLOCK" > /tmp/previous_block.txt
 }
 
 perform_daily_backup() {

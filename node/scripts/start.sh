@@ -1,10 +1,19 @@
 #!/bin/bash
+echo "Starting Studio Blockchain Main Validator..."
 
-echo "Starting Studio Blockchain Mainnet Node..."
-
-# Get the validator address
 VALIDATOR_ADDRESS=$(cat ~/studio-mainnet/node/address.txt)
 echo "Validator address: $VALIDATOR_ADDRESS"
+
+# Create a backup of the data directory before starting
+BACKUP_DIR=~/studio-mainnet/backups
+mkdir -p $BACKUP_DIR
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+echo "Creating backup of blockchain data..."
+tar -czf $BACKUP_DIR/blockchain-data-$TIMESTAMP.tar.gz -C ~/studio-mainnet/node data --exclude data/geth/chaindata/ancient --exclude data/geth/lightchaindata/ancient
+echo "Backup created at $BACKUP_DIR/blockchain-data-$TIMESTAMP.tar.gz"
+
+# Keep only the last 5 backups to save space
+ls -t $BACKUP_DIR/blockchain-data-*.tar.gz | tail -n +6 | xargs -r rm
 
 # Start the blockchain node
 geth --datadir ~/studio-mainnet/node/data \
@@ -35,4 +44,4 @@ geth --datadir ~/studio-mainnet/node/data \
 --txpool.globalslots "16384" \
 --txpool.accountqueue "64" \
 --txpool.globalqueue "1024" \
---verbosity 3
+--verbosity 4

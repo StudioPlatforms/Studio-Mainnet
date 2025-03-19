@@ -156,10 +156,6 @@ run_setup() {
         "$SCRIPT_DIR/backup.sh"
     fi
     
-    # Setup firewall
-    log "INFO" "Setting up firewall..."
-    "$SCRIPT_DIR/firewall.sh"
-
     # Setup services
     log "INFO" "Setting up services..."
     "$SCRIPT_DIR/service.sh"

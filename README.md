@@ -23,7 +23,7 @@ This neural network integration enables a unique gas fee structure where standar
 - **Block Time**: 5 seconds
 - **Consensus**: Clique Proof of Authority (PoA) with Neural Network Optimization
 - **Gas Model**: Zero-fee standard transactions with optional priority fees
-- **RPC URL**: https://mainnet.studio-blockchain.com https://mainnet2.studio-blockchain.com https:// https://mainnet3.studio-blockchain.com/ https://mainnet.studio-scan.com/ https://mainnet2.studio-scan.com/
+- **RPC URL**: https://mainnet.studio-blockchain.com https://mainnet2.studio-blockchain.com https://mainnet3.studio-blockchain.com/ https://mainnet.studio-scan.com/ https://mainnet2.studio-scan.com/
 - **WebSocket URL**: wss://mainnet.studio-blockchain.com:8547
 
 ## Repository Structure

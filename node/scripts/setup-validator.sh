@@ -227,6 +227,9 @@ verify_genesis_block_hash() {
     # Get the genesis block hash
     GENESIS_HASH=$(geth --datadir "$DATADIR" console --exec "eth.getBlock(0).hash" 2>/dev/null)
     
+    # Remove quotes from the hash if present
+    GENESIS_HASH=$(echo "$GENESIS_HASH" | sed 's/"//g')
+    
     # Check if the genesis block hash is correct
     if [ "$GENESIS_HASH" != "0x625c44301fbdd241bd9fb67023904dc4c023c4a6b2747756de5d8869a60f29a8" ]; then
         log "ERROR" "Genesis block hash mismatch!"

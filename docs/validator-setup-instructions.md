@@ -1,6 +1,6 @@
 # Studio Blockchain Validator Node Setup Instructions
 
-This document provides step-by-step instructions for setting up a validator node for the Studio Blockchain network and connecting it to the main node.
+This document provides comprehensive instructions for setting up a validator node for the Studio Blockchain network. It incorporates lessons learned from actual deployments and addresses common challenges.
 
 ## System Requirements
 
@@ -102,7 +102,8 @@ geth version
 Create the necessary directories:
 
 ```bash
-mkdir -p ~/studio-validator/node/{scripts,config,data}
+mkdir -p ~/studio-validator/data/geth
+mkdir -p ~/studio-validator/scripts
 mkdir -p ~/studio-validator/backups/{daily,weekly}
 ```
 
@@ -112,14 +113,14 @@ Create a new account for your validator:
 
 ```bash
 # Create a password file
-echo "your-strong-password" > ~/studio-validator/node/password.txt
-chmod 600 ~/studio-validator/node/password.txt
+echo "your-strong-password" > ~/studio-validator/password.txt
+chmod 600 ~/studio-validator/password.txt
 
 # Create a new account
-geth --datadir ~/studio-validator/node/data account new --password ~/studio-validator/node/password.txt
+geth --datadir ~/studio-validator/data account new --password ~/studio-validator/password.txt
 
-# Note down your account address (it will look like 0x123abc...)
-geth --datadir ~/studio-validator/node/data account list
+# Save your account address to a file for easy reference
+geth --datadir ~/studio-validator/data account list | grep -o '0x[0-9a-fA-F]\{40\}' > ~/studio-validator/address.txt
 ```
 
 Alternatively, you can import an existing private key:
@@ -129,40 +130,38 @@ Alternatively, you can import an existing private key:
 echo "your-private-key-without-0x-prefix" > /tmp/private-key.txt
 
 # Import the private key
-geth account import --datadir ~/studio-validator/node/data /tmp/private-key.txt --password ~/studio-validator/node/password.txt
+geth account import --datadir ~/studio-validator/data --password ~/studio-validator/password.txt /tmp/private-key.txt
 
 # Remove the temporary private key file for security
 rm /tmp/private-key.txt
 
-# Note down your account address
-geth --datadir ~/studio-validator/node/data account list
+# Save your account address to a file for easy reference
+geth --datadir ~/studio-validator/data account list | grep -o '0x[0-9a-fA-F]\{40\}' > ~/studio-validator/address.txt
 ```
 
-### 7. Customize the Genesis File
+### 7. Obtain the Correct Genesis File
 
-Copy and customize the genesis.json file with your validator address:
+**CRITICAL STEP**: You must use the exact same genesis.json file as the existing network. Even a single character difference will result in a different genesis block hash, preventing your node from connecting to the network.
 
 ```bash
-# Copy the genesis file
-cp node/genesis.json ~/studio-validator/node/
-
-# Edit the genesis file to replace the placeholder with your validator address
-# Replace YOUR_VALIDATOR_ADDRESS_HERE with your actual validator address (without the 0x prefix)
-# For example, if your address is 0x123abc..., use 123abc...
-sed -i "s/YOUR_VALIDATOR_ADDRESS_HERE/YOUR_ACTUAL_ADDRESS_WITHOUT_0x_PREFIX/g" ~/studio-validator/node/genesis.json
+# Contact the Studio Blockchain team to obtain the correct genesis.json file
+# Save it to ~/studio-validator/genesis.json
 ```
 
-> **IMPORTANT**: This step is crucial for you to receive gas fees as a validator. You must replace the placeholder with your own validator address in both the "extradata" field and the "alloc" section.
+Do NOT modify the genesis.json file in any way. The extradata field and alloc section must match exactly what is used by the existing network.
 
-### 8. Create Static Nodes File
+### 8. Create Static Nodes Configuration
 
-Create the static-nodes.json file to connect to the main node:
+Create the config.toml file with static nodes configuration:
 
 ```bash
-mkdir -p ~/studio-validator/node/data/geth
-cat > ~/studio-validator/node/data/geth/static-nodes.json << 'EOF'
-[
-  "enode://20b8ecf71c1929290c149d7de20408e8140984334e02a54830cf40ae8dcc1a168466949a04bc00847666d11879a9dc98594debdc9a8c20daa461bad47ad81023@62.171.162.49:30303"
+cat > ~/studio-validator/data/geth/config.toml << 'EOF'
+[Node.P2P]
+StaticNodes = [
+  "enode://673c250c3a7c91f5900cbe1bc605de2a2b94ebf0e853ceba70dc556249b76e4d4ce4b25eb13e13e32689365d50e08ff8fcf704b0827150e84164a04d58118864@173.249.16.253:30303",
+  "enode://be9ff49b5a918370d80237faeca6ff260cb54431b0d71ac766e7b965b47ecca1bb0db44fb9501132a7f0449a43777e55baeeae2d00e4168484003c9bdc8d38bf@173.212.200.31:30303",
+  "enode://c4f0744053f530f887f1b1ca03c79415a2fac2bbd8576d4e978f7e0e902b0c2fe1bdd5541afc087abaae9f23aa43d66a2749025fa41d7bb47be2168942bae409@161.97.92.8:30303",
+  "enode://3295d5cc7495b59f511de451e71a614f84084119b0ad25c2758edca1c708eb4e32506a39ec86d42c8335828f47ca8bb48d6bbb6d131036e2af6828320e44431f@167.86.95.117:30303"
 ]
 EOF
 ```
@@ -172,7 +171,7 @@ EOF
 Initialize the blockchain with the genesis file:
 
 ```bash
-geth --datadir ~/studio-validator/node/data init ~/studio-validator/node/genesis.json
+geth --datadir ~/studio-validator/data init ~/studio-validator/genesis.json
 ```
 
 ### 10. Create Start Script
@@ -180,11 +179,11 @@ geth --datadir ~/studio-validator/node/data init ~/studio-validator/node/genesis
 Create the start script:
 
 ```bash
-cat > ~/studio-validator/node/scripts/start.sh << 'EOF'
+cat > ~/studio-validator/scripts/start.sh << 'EOF'
 #!/bin/bash
 echo "Starting Studio Blockchain Validator Node..."
 
-VALIDATOR_ADDRESS=$(cat ~/studio-validator/node/data/validator-address.txt)
+VALIDATOR_ADDRESS=$(cat ~/studio-validator/address.txt)
 echo "Validator address: $VALIDATOR_ADDRESS"
 
 # Create a backup of the data directory before starting
@@ -193,30 +192,34 @@ mkdir -p $BACKUP_DIR/daily
 mkdir -p $BACKUP_DIR/weekly
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 echo "Creating backup of blockchain data..."
-tar -czf $BACKUP_DIR/daily/blockchain-data-$TIMESTAMP.tar.gz -C ~/studio-validator/node data --exclude data/geth/chaindata/ancient --exclude data/geth/lightchaindata/ancient
+tar -czf $BACKUP_DIR/daily/blockchain-data-$TIMESTAMP.tar.gz -C ~/studio-validator/data --exclude data/geth/chaindata/ancient --exclude data/geth/lightchaindata/ancient
 echo "Backup created at $BACKUP_DIR/daily/blockchain-data-$TIMESTAMP.tar.gz"
 
 # Keep only the last 5 backups to save space
 ls -t $BACKUP_DIR/daily/blockchain-data-*.tar.gz | tail -n +6 | xargs -r rm
 
 # Start the blockchain node
-geth --datadir ~/studio-validator/node/data \
+geth --config ~/studio-validator/data/geth/config.toml \
+--datadir ~/studio-validator/data \
 --networkid 240241 \
 --port 30303 \
 --http \
 --http.addr "127.0.0.1" \
 --http.port 8545 \
---http.api "eth,net,web3,txpool,debug,clique" \
+--http.corsdomain "*" \
+--http.vhosts "*" \
+--http.api "eth,net,web3,personal,miner,admin,clique,txpool,debug" \
 --ws \
 --ws.addr "127.0.0.1" \
 --ws.port 8546 \
---ws.api "eth,net,web3,txpool,debug,clique" \
+--ws.origins "*" \
+--ws.api "eth,net,web3,personal,miner,admin,clique,txpool,debug" \
 --mine \
 --miner.gasprice "0" \
 --miner.gaslimit "30000000" \
 --allow-insecure-unlock \
 --unlock $VALIDATOR_ADDRESS \
---password ~/studio-validator/node/password.txt \
+--password ~/studio-validator/password.txt \
 --syncmode full \
 --miner.etherbase $VALIDATOR_ADDRESS \
 --rpc.allow-unprotected-txs \
@@ -225,23 +228,20 @@ geth --datadir ~/studio-validator/node/data \
 --txpool.globalslots "16384" \
 --txpool.accountqueue "64" \
 --txpool.globalqueue "1024" \
---metrics \
---metrics.addr "127.0.0.1" \
---metrics.port "6060" \
---verbosity 3
+--verbosity 4
 EOF
 
-chmod +x ~/studio-validator/node/scripts/start.sh
+chmod +x ~/studio-validator/scripts/start.sh
 ```
 
-### 11. Create Systemd Service Files
+**IMPORTANT**: Note the `--config` flag which is essential for loading the static nodes configuration.
 
-Create the systemd service files:
+### 11. Create Systemd Service File
+
+Create the systemd service file:
 
 ```bash
-# For user-level service
-mkdir -p ~/.config/systemd/user
-cat > ~/.config/systemd/user/studio-validator.service << 'EOF'
+cat > /etc/systemd/system/geth-studio-validator.service << 'EOF'
 [Unit]
 Description=Studio Blockchain Validator Node
 After=network.target
@@ -249,31 +249,8 @@ Wants=network.target
 
 [Service]
 Type=simple
-ExecStart=/home/$(whoami)/studio-validator/node/scripts/start.sh
-Restart=always
-RestartSec=30
-StandardOutput=journal
-StandardError=journal
-
-# Ensure data integrity during shutdown
-KillSignal=SIGINT
-TimeoutStopSec=300
-
-[Install]
-WantedBy=default.target
-EOF
-
-# For system-level service (requires root)
-sudo cat > /etc/systemd/system/geth-studio-validator.service << 'EOF'
-[Unit]
-Description=Studio Blockchain Validator Node
-After=network.target
-Wants=network.target
-
-[Service]
-Type=simple
-User=$(whoami)
-ExecStart=/home/$(whoami)/studio-validator/node/scripts/start.sh
+User=root
+ExecStart=/root/studio-validator/scripts/start.sh
 Restart=always
 RestartSec=30
 StandardOutput=journal
@@ -302,15 +279,9 @@ EOF
 Start the validator node using systemd:
 
 ```bash
-# For user-level service
-systemctl --user daemon-reload
-systemctl --user enable studio-validator.service
-systemctl --user start studio-validator
-
-# For system-level service (requires root)
-sudo systemctl daemon-reload
-sudo systemctl enable geth-studio-validator.service
-sudo systemctl start geth-studio-validator
+systemctl daemon-reload
+systemctl enable geth-studio-validator.service
+systemctl start geth-studio-validator
 ```
 
 ### 13. Verify the Deployment
@@ -318,130 +289,194 @@ sudo systemctl start geth-studio-validator
 Check the status of the service:
 
 ```bash
-# For user-level service
-systemctl --user status studio-validator
-
-# For system-level service
-sudo systemctl status geth-studio-validator
+systemctl status geth-studio-validator
 ```
 
 Check the blockchain logs:
 
 ```bash
-# For user-level service
-journalctl --user -u studio-validator -f
-
-# For system-level service
-sudo journalctl -u geth-studio-validator -f
+journalctl -u geth-studio-validator -f
 ```
 
-## 14. Add This Node as a Validator
+## Adding Your Node as a Validator
 
-After the node is set up and running, you need to add it as a validator to the network. To do this, you need to:
+After your node is set up and running, you need to have it added as a validator to the network. This requires existing validators to propose and vote for your node.
 
-1. Get the validator address from this node:
-   ```bash
-   cat ~/studio-validator/node/data/validator-address.txt
-   ```
+### 1. Verify Your Node is Syncing
 
-2. Contact the Studio Blockchain team at office@studio-blockchain.com with your validator address to be added to the network.
+First, check if your node is syncing with the network:
 
-## Preventing Ghost State Issues
+```bash
+curl -s -X POST -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' http://127.0.0.1:8545
+```
 
-To prevent ghost state issues, follow these best practices:
+The result should be a hex number representing the current block number. If it's `0x0`, your node hasn't started syncing yet.
 
-1. **Ensure Proper Network Connectivity**:
-   - Make sure your validator has a stable internet connection
-   - Configure your firewall to allow incoming and outgoing connections on port 30303
-   - Use the static-nodes.json file to connect to known validators
+### 2. Check Your Node's Peers
 
-2. **Maintain Time Synchronization**:
-   - Install and configure NTP to ensure your system clock is accurate
-   - Time drift can cause consensus issues in Clique PoA networks
+Verify that your node is connected to the network:
 
-3. **Monitor Validator Participation**:
-   - Regularly check if your validator is signing blocks
-   - Monitor the number of validators in the network
-   - Watch for signs of ghost state issues (e.g., no blocks being produced)
+```bash
+curl -s -X POST -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","method":"admin_peers","params":[],"id":1}' http://127.0.0.1:8545
+```
 
-4. **Regular Backups**:
-   - Create regular backups of your validator data
-   - Test backup restoration procedures
+You should see a list of peers that your node is connected to.
 
-5. **Proper Shutdown Procedures**:
-   - Always use SIGINT to stop the geth process (systemctl stop)
-   - Avoid force killing the process
+### 3. Request to be Added as a Validator
+
+Contact the existing validators with your validator address:
+
+```bash
+cat ~/studio-validator/address.txt
+```
+
+The existing validators will need to propose your address using the `clique_propose` RPC method:
+
+```bash
+# This command needs to be run on each existing validator node
+curl -s -X POST -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","method":"clique_propose","params":["YOUR_VALIDATOR_ADDRESS", true],"id":1}' http://127.0.0.1:8545
+```
+
+### 4. Verify You've Been Added as a Validator
+
+After the existing validators have proposed your node, check if you've been added to the list of signers:
+
+```bash
+curl -s -X POST -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","method":"clique_getSigners","params":[],"id":1}' http://127.0.0.1:8545
+```
+
+Your address should appear in the list of signers.
+
+### 5. Verify Your Node is Mining
+
+Check if your node is mining blocks:
+
+```bash
+curl -s -X POST -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","method":"eth_mining","params":[],"id":1}' http://127.0.0.1:8545
+```
+
+The result should be `true` if your node is mining.
+
+## Troubleshooting
+
+### Genesis Block Mismatch
+
+If you see errors like `genesis mismatch` in the logs, it means your genesis block hash doesn't match the one used by the network.
+
+**Solution**: Obtain the exact genesis.json file used by the existing network and reinitialize your blockchain:
+
+```bash
+# Stop the validator service
+systemctl stop geth-studio-validator
+
+# Remove the existing chaindata
+rm -rf ~/studio-validator/data/geth/chaindata
+rm -rf ~/studio-validator/data/geth/lightchaindata
+rm -rf ~/studio-validator/data/geth/nodes
+
+# Initialize with the correct genesis file
+geth --datadir ~/studio-validator/data init ~/studio-validator/genesis.json
+
+# Start the validator service
+systemctl start geth-studio-validator
+```
+
+### Static Nodes Not Connecting
+
+If your node isn't connecting to the static nodes, check if the config.toml file is being loaded correctly.
+
+**Solution**: Ensure the `--config` flag is included in the start script:
+
+```bash
+geth --config ~/studio-validator/data/geth/config.toml ...
+```
+
+### Account Unlock Failure
+
+If you see errors like `Failed to unlock account` in the logs, it means the password provided doesn't match the one used to create the account.
+
+**Solution**: Re-import the account with the correct password:
+
+```bash
+# Stop the validator service
+systemctl stop geth-studio-validator
+
+# Remove the existing keystore files
+rm -rf ~/studio-validator/data/keystore/*
+
+# Create a new password file
+echo "your-correct-password" > ~/studio-validator/password.txt
+chmod 600 ~/studio-validator/password.txt
+
+# Re-import the private key
+echo "your-private-key-without-0x-prefix" > /tmp/private-key.txt
+geth account import --datadir ~/studio-validator/data --password ~/studio-validator/password.txt /tmp/private-key.txt
+rm /tmp/private-key.txt
+
+# Start the validator service
+systemctl start geth-studio-validator
+```
+
+### Node Not Syncing
+
+If your node isn't syncing blocks, check if it's connected to any peers:
+
+```bash
+curl -s -X POST -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","method":"admin_peers","params":[],"id":1}' http://127.0.0.1:8545
+```
+
+**Solution**: If you don't see any peers, check your network configuration and firewall settings. Ensure port 30303 is open for both TCP and UDP.
 
 ## Maintenance
 
 ### Backups
 
-The system is configured to automatically create backups:
-- Daily at 2:00 AM
-- Weekly on Sunday at 3:00 AM
+The system is configured to automatically create backups in the `~/studio-validator/backups/daily/` directory. You can also create manual backups:
 
-Backups are stored in:
-- `~/studio-validator/backups/daily/`
-- `~/studio-validator/backups/weekly/`
+```bash
+# Create a manual backup
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+tar -czf ~/studio-validator/backups/manual-backup-$TIMESTAMP.tar.gz -C ~/studio-validator/data --exclude data/geth/chaindata/ancient --exclude data/geth/lightchaindata/ancient
+```
 
 ### Monitoring
 
-The monitoring script checks:
-- If the node is running
-- Available disk space
-- Block production
-- Validator participation
-
-If any issues are detected, the script will automatically attempt to resolve them.
-
-## Troubleshooting
-
-### Node Not Starting
-
-Check the logs:
+Regularly check the status of your validator:
 
 ```bash
-journalctl --user -u studio-validator -n 100
+# Check if the service is running
+systemctl status geth-studio-validator
+
+# Check the logs for errors
+journalctl -u geth-studio-validator -n 100
+
+# Check if your node is mining
+curl -s -X POST -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","method":"eth_mining","params":[],"id":1}' http://127.0.0.1:8545
+
+# Check if your node is in the list of signers
+curl -s -X POST -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","method":"clique_getSigners","params":[],"id":1}' http://127.0.0.1:8545
 ```
 
-Common issues:
-- Port conflicts: Check if port 30303 is already in use
-- Disk space: Ensure there's enough disk space available
-- Permission issues: Ensure the data directory is owned by the correct user
+### Updating
 
-### Node Not Connecting to Peers
-
-Check the static-nodes.json file:
+To update the Geth client:
 
 ```bash
-cat ~/studio-validator/node/data/geth/static-nodes.json
+# Stop the validator service
+systemctl stop geth-studio-validator
+
+# Download and install the new version of Geth
+wget https://gethstore.blob.core.windows.net/builds/geth-linux-amd64-NEW_VERSION.tar.gz
+tar -xzf geth-linux-amd64-NEW_VERSION.tar.gz
+sudo cp geth-linux-amd64-NEW_VERSION/geth /usr/local/bin/
+rm -rf geth-linux-amd64-NEW_VERSION*
+
+# Start the validator service
+systemctl start geth-studio-validator
 ```
-
-Ensure it contains valid enode URLs. If not, update it and restart the node.
-
-### Ghost State Issues
-
-If you suspect a ghost state issue (no blocks being produced), check:
-
-1. The number of validators in the network:
-   ```bash
-   geth attach ~/studio-validator/node/data/geth.ipc --exec 'clique.getSigners()'
-   ```
-
-2. If your validator is in the signers list:
-   ```bash
-   geth attach ~/studio-validator/node/data/geth.ipc --exec 'clique.getSigners().includes(eth.coinbase)'
-   ```
-
-3. The time since the last block:
-   ```bash
-   geth attach ~/studio-validator/node/data/geth.ipc --exec 'Math.floor(Date.now()/1000) - eth.getBlock(eth.blockNumber).timestamp'
-   ```
-
-If you detect a ghost state issue, contact the Studio Blockchain team immediately.
 
 ## Contact
 
 For questions or support, please contact:
 
-- Email: office@studio-blockchain.com
+Email: office@studio-blockchain.com

@@ -104,26 +104,117 @@ EOF
     log "INFO" "Config.toml created successfully."
 }
 
-# Function to modify the start script to include the --config flag
-modify_start_script() {
-    log "INFO" "Modifying start script to include --config flag..."
+# Function to create start.sh script
+create_start_script() {
+    log "INFO" "Creating start.sh script..."
     
-    # Check if the start script exists
-    if [ ! -f "$SCRIPT_DIR/start.sh.template" ]; then
-        log "ERROR" "Start script template not found: $SCRIPT_DIR/start.sh.template"
-        return 1
+    mkdir -p "$DATADIR/scripts"
+    
+    cat > "$DATADIR/scripts/start.sh" << 'EOF'
+#!/bin/bash
+echo "Starting Studio Blockchain Validator Node..."
+
+VALIDATOR_ADDRESS=$(cat ~/studio-validator/address.txt)
+echo "Validator address: $VALIDATOR_ADDRESS"
+
+# Create a backup of the data directory before starting
+BACKUP_DIR=~/studio-validator/backups
+mkdir -p $BACKUP_DIR/daily
+mkdir -p $BACKUP_DIR/weekly
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+echo "Creating backup of blockchain data..."
+tar -czf $BACKUP_DIR/daily/blockchain-data-$TIMESTAMP.tar.gz -C ~/studio-validator/data --exclude data/geth/chaindata/ancient --exclude data/geth/lightchaindata/ancient
+echo "Backup created at $BACKUP_DIR/daily/blockchain-data-$TIMESTAMP.tar.gz"
+
+# Keep only the last 5 backups to save space
+ls -t $BACKUP_DIR/daily/blockchain-data-*.tar.gz | tail -n +6 | xargs -r rm
+
+# Start the blockchain node
+geth --config ~/studio-validator/data/geth/config.toml \
+--datadir ~/studio-validator/data \
+--networkid 240241 \
+--port 30303 \
+--http \
+--http.addr "127.0.0.1" \
+--http.port 8545 \
+--http.corsdomain "*" \
+--http.vhosts "*" \
+--http.api "eth,net,web3,personal,miner,admin,clique,txpool,debug" \
+--ws \
+--ws.addr "127.0.0.1" \
+--ws.port 8546 \
+--ws.origins "*" \
+--ws.api "eth,net,web3,personal,miner,admin,clique,txpool,debug" \
+--mine \
+--miner.gasprice "0" \
+--miner.gaslimit "30000000" \
+--allow-insecure-unlock \
+--unlock $VALIDATOR_ADDRESS \
+--password ~/studio-validator/password.txt \
+--syncmode full \
+--miner.etherbase $VALIDATOR_ADDRESS \
+--rpc.allow-unprotected-txs \
+--txpool.pricelimit "0" \
+--txpool.accountslots "16" \
+--txpool.globalslots "16384" \
+--txpool.accountqueue "64" \
+--txpool.globalqueue "1024" \
+--verbosity 4
+EOF
+    
+    chmod +x "$DATADIR/scripts/start.sh"
+    
+    log "INFO" "Start script created successfully."
+}
+
+# Function to install Geth
+install_geth() {
+    log "INFO" "Installing Geth..."
+    
+    # Check if Geth is already installed
+    if command -v geth &> /dev/null; then
+        log "INFO" "Geth is already installed."
+        return 0
     fi
     
-    # Create a temporary file
-    TMP_FILE=$(mktemp)
+    # Install Geth
+    log "INFO" "Downloading Geth v1.13.14..."
     
-    # Read the template and add the --config flag
-    cat "$SCRIPT_DIR/start.sh.template" | sed 's/geth --datadir/geth --config $DATADIR\/geth\/config.toml --datadir/' > "$TMP_FILE"
+    # Create a temporary directory
+    TMP_DIR=$(mktemp -d)
     
-    # Move the temporary file to the destination
-    mv "$TMP_FILE" "$SCRIPT_DIR/start.sh.template"
+    # Download Geth
+    wget -q -O "$TMP_DIR/geth.tar.gz" "https://gethstore.blob.core.windows.net/builds/geth-linux-amd64-1.13.14-2bd6bd01.tar.gz"
     
-    log "INFO" "Start script modified successfully."
+    # Check if download was successful
+    if [ $? -ne 0 ]; then
+        log "ERROR" "Failed to download Geth. Trying alternative URL..."
+        wget -q -O "$TMP_DIR/geth.tar.gz" "https://github.com/ethereum/go-ethereum/releases/download/v1.13.14/geth-linux-amd64-1.13.14-2bd6bd01.tar.gz"
+        
+        if [ $? -ne 0 ]; then
+            log "ERROR" "Failed to download Geth. Please check your internet connection and try again."
+            rm -rf "$TMP_DIR"
+            return 1
+        fi
+    fi
+    
+    # Extract Geth
+    tar -xzf "$TMP_DIR/geth.tar.gz" -C "$TMP_DIR"
+    
+    # Install Geth
+    cp "$TMP_DIR/geth-linux-amd64-1.13.14-2bd6bd01/geth" /usr/local/bin/
+    
+    # Clean up
+    rm -rf "$TMP_DIR"
+    
+    # Verify installation
+    if command -v geth &> /dev/null; then
+        log "INFO" "Geth installed successfully."
+        return 0
+    else
+        log "ERROR" "Failed to install Geth."
+        return 1
+    fi
 }
 
 # Function to verify genesis block hash
@@ -156,6 +247,244 @@ verify_genesis_block_hash() {
     fi
 }
 
+# Function to setup validator account
+setup_validator_account() {
+    log "INFO" "Setting up validator account..."
+    
+    # Create password file directory
+    mkdir -p "$DATADIR"
+    
+    # Check if private key is provided
+    if [ -n "$IMPORT_KEY" ]; then
+        log "INFO" "Importing private key..."
+        
+        # Create password file
+        if [ -n "$PASSWORD" ]; then
+            echo "$PASSWORD" > "$DATADIR/password.txt"
+        else
+            log "INFO" "Please enter a strong password for your validator account:"
+            read -s PASSWORD
+            echo "$PASSWORD" > "$DATADIR/password.txt"
+        fi
+        
+        # Make password file readable only by owner
+        chmod 600 "$DATADIR/password.txt"
+        
+        # Create temporary file for private key
+        PRIVATE_KEY_FILE=$(mktemp)
+        echo "$IMPORT_KEY" > "$PRIVATE_KEY_FILE"
+        
+        # Import private key
+        mkdir -p "$DATADIR/keystore"
+        ACCOUNT_ADDRESS=$(geth account import --datadir "$DATADIR" --password "$DATADIR/password.txt" "$PRIVATE_KEY_FILE" 2>&1 | grep -o '0x[0-9a-fA-F]\{40\}')
+        
+        # Remove temporary file
+        rm "$PRIVATE_KEY_FILE"
+        
+        # Check if address was extracted
+        if [ -z "$ACCOUNT_ADDRESS" ]; then
+            log "INFO" "Could not extract address from import output, trying to get it from keystore"
+            ACCOUNT_ADDRESS=$(geth --datadir "$DATADIR" account list 2>/dev/null | grep -o '0x[0-9a-fA-F]\{40\}')
+        fi
+        
+        # Check if address was extracted
+        if [ -z "$ACCOUNT_ADDRESS" ]; then
+            log "INFO" "Could not extract address from accounts list, trying to get it from keystore files"
+            KEYSTORE_FILE=$(ls -1 "$DATADIR/keystore" 2>/dev/null | head -n 1)
+            if [ -n "$KEYSTORE_FILE" ]; then
+                ACCOUNT_ADDRESS=$(echo "$KEYSTORE_FILE" | grep -o '[0-9a-fA-F]\{40\}')
+                if [ -n "$ACCOUNT_ADDRESS" ]; then
+                    ACCOUNT_ADDRESS="0x$ACCOUNT_ADDRESS"
+                fi
+            fi
+        fi
+        
+        # Check if address was extracted
+        if [ -z "$ACCOUNT_ADDRESS" ]; then
+            log "WARN" "Could not determine the imported account address"
+            log "INFO" "Please enter the address of the imported account (with 0x prefix):"
+            read ACCOUNT_ADDRESS
+        fi
+        
+        # Save address to file
+        echo "$ACCOUNT_ADDRESS" > "$DATADIR/address.txt"
+        
+        # Export validator account
+        export VALIDATOR_ACCOUNT="$ACCOUNT_ADDRESS"
+        
+        log "INFO" "Saved password to $DATADIR/password.txt"
+        log "INFO" "Saved validator address to $DATADIR/address.txt"
+        
+        # Check if account exists in keystore
+        if [ ! -d "$DATADIR/keystore" ] || [ -z "$(ls -A "$DATADIR/keystore" 2>/dev/null)" ]; then
+            log "WARN" "Validator account not found in keystore. This may indicate an issue with account creation."
+        fi
+    else
+        log "INFO" "Please choose how you want to set up your validator account:"
+        echo "1. Create a new account"
+        echo "2. Import an existing private key"
+        read -p "Enter your choice (1-2): " ACCOUNT_CHOICE
+        
+        case $ACCOUNT_CHOICE in
+            1)
+                log "INFO" "Creating a new account..."
+                
+                # Create password file
+                log "INFO" "Please enter a strong password for your validator account:"
+                read -s PASSWORD
+                echo "$PASSWORD" > "$DATADIR/password.txt"
+                
+                # Make password file readable only by owner
+                chmod 600 "$DATADIR/password.txt"
+                
+                # Create account
+                mkdir -p "$DATADIR/keystore"
+                ACCOUNT_ADDRESS=$(geth account new --datadir "$DATADIR" --password "$DATADIR/password.txt" 2>&1 | grep -o '0x[0-9a-fA-F]\{40\}')
+                
+                # Check if address was extracted
+                if [ -z "$ACCOUNT_ADDRESS" ]; then
+                    log "INFO" "Could not extract address from creation output, trying to get it from keystore"
+                    ACCOUNT_ADDRESS=$(geth --datadir "$DATADIR" account list 2>/dev/null | grep -o '0x[0-9a-fA-F]\{40\}')
+                fi
+                
+                # Check if address was extracted
+                if [ -z "$ACCOUNT_ADDRESS" ]; then
+                    log "INFO" "Could not extract address from accounts list, trying to get it from keystore files"
+                    KEYSTORE_FILE=$(ls -1 "$DATADIR/keystore" 2>/dev/null | head -n 1)
+                    if [ -n "$KEYSTORE_FILE" ]; then
+                        ACCOUNT_ADDRESS=$(echo "$KEYSTORE_FILE" | grep -o '[0-9a-fA-F]\{40\}')
+                        if [ -n "$ACCOUNT_ADDRESS" ]; then
+                            ACCOUNT_ADDRESS="0x$ACCOUNT_ADDRESS"
+                        fi
+                    fi
+                fi
+                
+                # Check if address was extracted
+                if [ -z "$ACCOUNT_ADDRESS" ]; then
+                    log "WARN" "Could not determine the created account address"
+                    log "INFO" "Please enter the address of the created account (with 0x prefix):"
+                    read ACCOUNT_ADDRESS
+                fi
+                
+                # Save address to file
+                echo "$ACCOUNT_ADDRESS" > "$DATADIR/address.txt"
+                
+                # Export validator account
+                export VALIDATOR_ACCOUNT="$ACCOUNT_ADDRESS"
+                
+                log "INFO" "Saved password to $DATADIR/password.txt"
+                log "INFO" "Saved validator address to $DATADIR/address.txt"
+                ;;
+            2)
+                log "INFO" "Please enter your private key (without 0x prefix):"
+                read IMPORT_KEY
+                
+                # Create password file
+                log "INFO" "Please enter a strong password for your validator account:"
+                read -s PASSWORD
+                echo "$PASSWORD" > "$DATADIR/password.txt"
+                
+                # Make password file readable only by owner
+                chmod 600 "$DATADIR/password.txt"
+                
+                # Create temporary file for private key
+                PRIVATE_KEY_FILE=$(mktemp)
+                echo "$IMPORT_KEY" > "$PRIVATE_KEY_FILE"
+                
+                # Import private key
+                mkdir -p "$DATADIR/keystore"
+                ACCOUNT_ADDRESS=$(geth account import --datadir "$DATADIR" --password "$DATADIR/password.txt" "$PRIVATE_KEY_FILE" 2>&1 | grep -o '0x[0-9a-fA-F]\{40\}')
+                
+                # Remove temporary file
+                rm "$PRIVATE_KEY_FILE"
+                
+                # Check if address was extracted
+                if [ -z "$ACCOUNT_ADDRESS" ]; then
+                    log "INFO" "Could not extract address from import output, trying to get it from keystore"
+                    ACCOUNT_ADDRESS=$(geth --datadir "$DATADIR" account list 2>/dev/null | grep -o '0x[0-9a-fA-F]\{40\}')
+                fi
+                
+                # Check if address was extracted
+                if [ -z "$ACCOUNT_ADDRESS" ]; then
+                    log "INFO" "Could not extract address from accounts list, trying to get it from keystore files"
+                    KEYSTORE_FILE=$(ls -1 "$DATADIR/keystore" 2>/dev/null | head -n 1)
+                    if [ -n "$KEYSTORE_FILE" ]; then
+                        ACCOUNT_ADDRESS=$(echo "$KEYSTORE_FILE" | grep -o '[0-9a-fA-F]\{40\}')
+                        if [ -n "$ACCOUNT_ADDRESS" ]; then
+                            ACCOUNT_ADDRESS="0x$ACCOUNT_ADDRESS"
+                        fi
+                    fi
+                fi
+                
+                # Check if address was extracted
+                if [ -z "$ACCOUNT_ADDRESS" ]; then
+                    log "WARN" "Could not determine the imported account address"
+                    log "INFO" "Please enter the address of the imported account (with 0x prefix):"
+                    read ACCOUNT_ADDRESS
+                fi
+                
+                # Save address to file
+                echo "$ACCOUNT_ADDRESS" > "$DATADIR/address.txt"
+                
+                # Export validator account
+                export VALIDATOR_ACCOUNT="$ACCOUNT_ADDRESS"
+                
+                log "INFO" "Saved password to $DATADIR/password.txt"
+                log "INFO" "Saved validator address to $DATADIR/address.txt"
+                ;;
+            *)
+                log "ERROR" "Invalid choice. Exiting."
+                exit 1
+                ;;
+        esac
+    fi
+    
+    log "INFO" "Validator account setup completed"
+}
+
+# Function to create systemd service file
+create_systemd_service() {
+    log "INFO" "Creating systemd service file..."
+    
+    # Create systemd service file
+    cat > /etc/systemd/system/geth-studio-validator.service << EOF
+[Unit]
+Description=Studio Blockchain Validator Node
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=$DATADIR/scripts/start.sh
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=geth-studio-validator
+LimitNOFILE=65536
+LimitNPROC=65536
+
+# Ensure data integrity during shutdown
+KillSignal=SIGINT
+TimeoutStopSec=300
+
+# Hardening measures
+PrivateTmp=true
+ProtectSystem=full
+NoNewPrivileges=true
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    # Reload systemd
+    systemctl daemon-reload
+    
+    log "INFO" "Systemd service file created successfully."
+}
+
 # Function to run the setup steps
 run_setup() {
     # Parse command line arguments
@@ -180,69 +509,41 @@ run_setup() {
         exit 0
     fi
     
+    # Set default data directory if not provided
+    if [ -z "$DATADIR" ]; then
+        DATADIR="$HOME/studio-validator"
+    fi
+    
     # Create directory structure
-    create_directory_structure
+    log "STEP" "Creating directory structure"
+    mkdir -p "$DATADIR/data/geth"
+    mkdir -p "$DATADIR/scripts"
+    mkdir -p "$DATADIR/backups/daily"
+    mkdir -p "$DATADIR/backups/weekly"
+    log "INFO" "Directory structure created successfully"
     
-    # Copy repository files
-    copy_repository_files
+    # Copy genesis.json
+    log "STEP" "Copying genesis.json"
+    cp "$SCRIPT_DIR/../genesis.json" "$DATADIR/genesis.json"
+    log "INFO" "Genesis file copied successfully"
     
-    # Check system requirements
-    log "INFO" "Checking system requirements..."
-    "$SCRIPT_DIR/system-check.sh"
-    
-    # Install dependencies and Geth
-    log "INFO" "Installing dependencies and Geth..."
-    "$SCRIPT_DIR/install.sh"
+    # Install Geth
+    install_geth
     
     # Setup validator account
-    log "INFO" "Setting up validator account..."
-    source "$SCRIPT_DIR/account.sh"
     setup_validator_account
-    
-    # Get validator account if not set by account.sh
-    if [ -z "$VALIDATOR_ACCOUNT" ]; then
-        if [ -f "$DATADIR/validator-address.txt" ]; then
-            VALIDATOR_ACCOUNT=$(cat "$DATADIR/validator-address.txt")
-            export VALIDATOR_ACCOUNT
-            log "INFO" "Using validator account: $VALIDATOR_ACCOUNT"
-        else
-            log "WARN" "Validator account not found. Network setup may fail."
-        fi
-    fi
     
     # Create config.toml with static nodes
     create_config_toml
     
-    # Modify the start script to include the --config flag
-    modify_start_script
-    
-    # Setup network configuration
-    log "INFO" "Setting up network configuration..."
-    export VALIDATOR_ACCOUNT
-    "$SCRIPT_DIR/network.sh"
+    # Create start.sh script
+    create_start_script
     
     # Verify genesis block hash
     verify_genesis_block_hash
     
-    # Setup monitoring
-    if [ "$MONITORING" = true ]; then
-        log "INFO" "Setting up monitoring..."
-        "$SCRIPT_DIR/monitoring.sh"
-    fi
-    
-    # Setup automatic backups
-    if [ "$AUTO_BACKUP" = true ]; then
-        log "INFO" "Setting up automatic backups..."
-        "$SCRIPT_DIR/backup.sh"
-    fi
-    
-    # Setup firewall
-    log "INFO" "Setting up firewall..."
-    "$SCRIPT_DIR/firewall.sh"
-
-    # Setup services
-    log "INFO" "Setting up services..."
-    "$SCRIPT_DIR/service.sh"
+    # Create systemd service file
+    create_systemd_service
     
     # Print final information
     log "STEP" "Setup Complete"
@@ -257,10 +558,10 @@ run_setup() {
     log "INFO" "2. They will add your node as a validator to the network"
     log "INFO" ""
     log "INFO" "Useful Commands:"
-    log "INFO" "Check service status: systemctl --user status studio-validator"
-    log "INFO" "View logs: journalctl --user -u studio-validator -f"
-    log "INFO" "Stop service: systemctl --user stop studio-validator"
-    log "INFO" "Start service: systemctl --user start studio-validator"
+    log "INFO" "Check service status: systemctl status geth-studio-validator"
+    log "INFO" "View logs: journalctl -u geth-studio-validator -f"
+    log "INFO" "Stop service: systemctl stop geth-studio-validator"
+    log "INFO" "Start service: systemctl start geth-studio-validator"
     log "INFO" ""
     log "INFO" "Troubleshooting:"
     log "INFO" "1. If you see 'genesis mismatch' errors in the logs, it means your genesis block hash doesn't match the one used by the network."
@@ -277,11 +578,110 @@ run_setup() {
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         log "INFO" "Starting validator node..."
-        "$SCRIPT_DIR/service.sh" start
+        systemctl enable geth-studio-validator
+        systemctl start geth-studio-validator
+        log "INFO" "Validator node started. Check status with: systemctl status geth-studio-validator"
     else
-        log "INFO" "Validator node not started. You can start it later with: systemctl --user start studio-validator"
+        log "INFO" "Validator node not started. You can start it later with: systemctl start geth-studio-validator"
     fi
 }
+
+# Function to parse command line arguments
+parse_arguments() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --help)
+                print_usage
+                exit 0
+                ;;
+            --datadir)
+                DATADIR="$2"
+                shift
+                shift
+                ;;
+            --network-id)
+                NETWORK_ID="$2"
+                shift
+                shift
+                ;;
+            --port)
+                PORT="$2"
+                shift
+                shift
+                ;;
+            --rpc-port)
+                RPC_PORT="$2"
+                shift
+                shift
+                ;;
+            --ws-port)
+                WS_PORT="$2"
+                shift
+                shift
+                ;;
+            --validator-name)
+                VALIDATOR_NAME="$2"
+                shift
+                shift
+                ;;
+            --import-key)
+                IMPORT_KEY="$2"
+                shift
+                shift
+                ;;
+            --password)
+                PASSWORD="$2"
+                shift
+                shift
+                ;;
+            --password-file)
+                PASSWORD_FILE="$2"
+                shift
+                shift
+                ;;
+            --bootnode)
+                BOOTNODE="$2"
+                shift
+                shift
+                ;;
+            --no-monitoring)
+                MONITORING=false
+                shift
+                ;;
+            --no-auto-backup)
+                AUTO_BACKUP=false
+                shift
+                ;;
+            --backup-interval)
+                BACKUP_INTERVAL="$2"
+                shift
+                shift
+                ;;
+            --backup-dir)
+                BACKUP_DIR="$2"
+                shift
+                shift
+                ;;
+            *)
+                log "ERROR" "Unknown option: $1"
+                print_usage
+                exit 1
+                ;;
+        esac
+    done
+}
+
+# Set default values
+DATADIR="$HOME/studio-validator"
+NETWORK_ID="240241"
+PORT="30303"
+RPC_PORT="8545"
+WS_PORT="8546"
+VALIDATOR_NAME="validator-$(hostname)"
+MONITORING=true
+AUTO_BACKUP=true
+BACKUP_INTERVAL="daily"
+BACKUP_DIR="$HOME/studio-validator/backups"
 
 # Run the setup
 run_setup "$@"

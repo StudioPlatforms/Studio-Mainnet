@@ -35,21 +35,21 @@ mkdir -p /opt/besu/data /opt/besu/keys
 
 # Copy genesis file
 echo "Copying genesis file..."
-cp besu-qbft/genesis.json /opt/besu/genesis.json
+cp genesis.json /opt/besu/genesis.json
 
 # Copy validator keys
 echo "Copying validator keys..."
-cp besu-qbft/Node-${VALIDATOR_NUM}/keys/* /opt/besu/keys/
+cp Node-${VALIDATOR_NUM}/keys/* /opt/besu/keys/
 
 # Create systemd service
 echo "Creating systemd service..."
-cp besu-qbft/besu-validator.service /etc/systemd/system/besu-validator.service
+cp besu-validator.service /etc/systemd/system/besu-validator.service
 sed -i "s/IP_ADDRESS/${IP_ADDRESS}/" /etc/systemd/system/besu-validator.service
 
 # Add bootnode parameter
 echo "Adding bootnode parameter..."
 BOOTNODE_IP="167.86.95.117"
-BOOTNODE_PUBKEY=$(cat besu-qbft/Node-1/keys/key.pub | sed 's/^0x//')
+BOOTNODE_PUBKEY=$(cat Node-1/keys/key.pub | sed 's/^0x//')
 BOOTNODE_ENODE="enode://${BOOTNODE_PUBKEY}@${BOOTNODE_IP}:30303"
 sed -i "/--sync-mode=FULL/a --bootnodes=${BOOTNODE_ENODE} \\\\" /etc/systemd/system/besu-validator.service
 

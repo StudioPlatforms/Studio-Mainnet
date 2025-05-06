@@ -104,39 +104,42 @@ print_success "Copied static-nodes.json"
 
 # Generate validator keys
 print_section "Setting Up Validator Keys"
-print_info "Generating new validator key..."
+print_info "Generating new validator key pair..."
 
 # Create a secure backup directory
 BACKUP_DIR="/root/validator-${VALIDATOR_NUM}-keys-backup"
 mkdir -p $BACKUP_DIR
 chmod 700 $BACKUP_DIR
 
-# Generate the key and export the public key in one command
-besu --data-path=/opt/besu/data \
-     --node-private-key-file=/opt/besu/keys/nodekey \
-     public-key export --to=/opt/besu/keys/key.pub
+# Generate key pair in /opt/besu/keys
+mkdir -p /opt/besu/keys
+besu operator generate-key-pair --to=/opt/besu/keys/
+
+# Define key paths
+PRIVATE_KEY_FILE="/opt/besu/keys/key"
+PUBLIC_KEY_FILE="/opt/besu/keys/key.pub"
 
 # Backup the keys
-cp /opt/besu/keys/nodekey $BACKUP_DIR/
-cp /opt/besu/keys/key.pub $BACKUP_DIR/
+cp "$PRIVATE_KEY_FILE" "$BACKUP_DIR/"
+cp "$PUBLIC_KEY_FILE" "$BACKUP_DIR/"
 
 # Display the public key
-PUBLIC_KEY=$(cat /opt/besu/keys/key.pub)
-print_success "Generated new validator key"
+PUBLIC_KEY=$(cat "$PUBLIC_KEY_FILE")
+print_success "Generated new validator key pair"
 print_info "Public Key: $PUBLIC_KEY"
 
 # Export and display the validator address
-besu --node-private-key-file=/opt/besu/keys/nodekey \
+besu --node-private-key-file="$PRIVATE_KEY_FILE" \
      public-key export-address --to=/opt/besu/keys/address.txt
 VALIDATOR_ADDRESS=$(cat /opt/besu/keys/address.txt)
 print_info "Validator Address: $VALIDATOR_ADDRESS"
 
 # Save address to backup
-echo $VALIDATOR_ADDRESS > $BACKUP_DIR/address.txt
+echo "$VALIDATOR_ADDRESS" > "$BACKUP_DIR/address.txt"
 
 # Display the private key in hex format for the user
-PRIVATE_KEY_HEX=$(xxd -p /opt/besu/keys/nodekey | tr -d '\n')
-echo $PRIVATE_KEY_HEX > $BACKUP_DIR/nodekey.hex
+PRIVATE_KEY_HEX=$(xxd -p "$PRIVATE_KEY_FILE" | tr -d '\n')
+echo "$PRIVATE_KEY_HEX" > "$BACKUP_DIR/nodekey.hex"
 print_info "Your validator's private key (hex): $PRIVATE_KEY_HEX"
 print_info "Your private key has been backed up to: $BACKUP_DIR"
 print_info "IMPORTANT: Keep this directory secure! It contains your validator's private key."

@@ -10,7 +10,7 @@ Environment="JAVA_OPTS=-Xms256m -Xmx768m"
 ExecStart=/usr/local/bin/besu \
 --data-path=/opt/besu/data \
 --genesis-file=/opt/besu/genesis.json \
---node-private-key-file=/opt/besu/keys/nodekey \
+--node-private-key-file=/opt/besu/keys/key \
 --p2p-host=IP_ADDRESS \
 --p2p-port=30303 \
 --rpc-http-enabled \

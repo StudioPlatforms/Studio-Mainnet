@@ -74,7 +74,7 @@ print_success "Updated systemd configuration"
 # Install prerequisites
 print_section "Installing Prerequisites"
 apt-get update
-apt-get install -y openjdk-21-jdk jq curl wget tar
+apt-get install -y openjdk-21-jdk jq curl wget tar vim xxd
 print_success "Installed all required packages"
 
 # Download and install Besu
@@ -149,10 +149,10 @@ if [ "$KEY_CHOICE" == "1" ]; then
 else
     # Import existing private key
     print_info "Importing existing private key..."
-    read -p "Enter your private key (without 0x prefix): " PRIVATE_KEY
+    read -p "Enter your private key (64 hex chars, no 0x prefix): " PRIVATE_HEX
     
-    # Save the private key
-    echo $PRIVATE_KEY > /opt/besu/keys/nodekey
+    # Convert hex to raw 32-byte binary and save it
+    printf "%s" "$PRIVATE_HEX" | xxd -r -p > /opt/besu/keys/nodekey
     chmod 600 /opt/besu/keys/nodekey
     
     # Export the public key and address in one command

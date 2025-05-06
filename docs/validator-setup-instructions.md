@@ -42,7 +42,9 @@ For a new validator, run:
 ./deploy.sh <validator_number> <ip_address>
 ```
 
-Replace `<validator_number>` with a unique number for your validator (starting from 8, as 1-7 are reserved for the initial validators) and `<ip_address>` with your server's public IP address.
+Where:
+- `<validator_number>` is a unique number for your validator. Use 8 or higher, as numbers 1-7 are reserved for the initial validators.
+- `<ip_address>` is the public IP address of your server where the validator will run.
 
 For example:
 

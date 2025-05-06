@@ -43,6 +43,10 @@ QBFT (Quorum Byzantine Fault Tolerance) is an enterprise-grade consensus algorit
    ./deploy.sh <validator_number> <ip_address>
    ```
 
+   Where:
+   - `<validator_number>` is a unique number for your validator. Use 8 or higher, as numbers 1-7 are reserved for the initial validators.
+   - `<ip_address>` is the public IP address of your server where the validator will run.
+
    For example:
    ```bash
    ./deploy.sh 8 203.0.113.10
@@ -172,6 +176,14 @@ curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","metho
 To add a new validator to the network:
 
 1. Deploy a new node using the instructions above
+   - Remember to use a validator number 8 or higher, as numbers 1-7 are reserved for the initial validators:
+     - Validator 1: 167.86.95.117
+     - Validator 2: 173.212.200.31
+     - Validator 3: 161.97.92.8
+     - Validator 4: 173.249.16.253
+     - Validator 5: 62.171.162.49
+     - Validators 6-7: Reserved for future use
+
 2. Propose the new validator using the QBFT API:
    ```bash
    curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"qbft_proposeValidatorVote","params":["0xNEW_VALIDATOR_ADDRESS", true],"id":1}' http://localhost:8545

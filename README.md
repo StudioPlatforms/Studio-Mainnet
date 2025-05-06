@@ -75,6 +75,10 @@ This neural network integration enables a unique gas fee structure where standar
    ./deploy.sh <validator_number> <ip_address>
    ```
 
+   Where:
+   - `<validator_number>` is a unique number for your validator. Use 8 or higher, as numbers 1-7 are reserved for the initial validators.
+   - `<ip_address>` is the public IP address of your server where the validator will run.
+
    For example:
    ```bash
    ./deploy.sh 8 203.0.113.10

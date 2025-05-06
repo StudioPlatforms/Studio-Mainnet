@@ -102,81 +102,45 @@ print_success "Copied genesis file"
 cp static-nodes.json /opt/besu/data/
 print_success "Copied static-nodes.json"
 
-# Handle validator keys
+# Generate validator keys
 print_section "Setting Up Validator Keys"
+print_info "Generating new validator key..."
 
-# Ask if user wants to generate new keys or import existing
-echo -e "${YELLOW}Do you want to:${NC}"
-echo "1) Generate a new validator key (recommended)"
-echo "2) Import an existing private key"
-read -p "Enter your choice (1 or 2): " KEY_CHOICE
+# Create a secure backup directory
+BACKUP_DIR="/root/validator-${VALIDATOR_NUM}-keys-backup"
+mkdir -p $BACKUP_DIR
+chmod 700 $BACKUP_DIR
 
-if [ "$KEY_CHOICE" == "1" ]; then
-    # Generate a new private key
-    print_info "Generating new validator key..."
-    
-    # Create a secure backup directory
-    BACKUP_DIR="/root/validator-${VALIDATOR_NUM}-keys-backup"
-    mkdir -p $BACKUP_DIR
-    chmod 700 $BACKUP_DIR
-    
-    # Generate the key and export the public key in one command
-    besu --data-path=/opt/besu/data \
-         --node-private-key-file=/opt/besu/keys/nodekey \
-         public-key export --to=/opt/besu/keys/key.pub
-    
-    # Backup the keys
-    cp /opt/besu/keys/nodekey $BACKUP_DIR/
-    cp /opt/besu/keys/key.pub $BACKUP_DIR/
-    
-    # Display the public key
-    PUBLIC_KEY=$(cat /opt/besu/keys/key.pub)
-    print_success "Generated new validator key"
-    print_info "Public Key: $PUBLIC_KEY"
-    
-    # Export and display the validator address
-    besu --node-private-key-file=/opt/besu/keys/nodekey \
-         public-key export-address --to=/opt/besu/keys/address.txt
-    VALIDATOR_ADDRESS=$(cat /opt/besu/keys/address.txt)
-    print_info "Validator Address: $VALIDATOR_ADDRESS"
-    
-    # Save address to backup
-    echo $VALIDATOR_ADDRESS > $BACKUP_DIR/address.txt
-    
-    print_info "Your private key has been backed up to: $BACKUP_DIR"
-    print_info "IMPORTANT: Keep this directory secure! It contains your validator's private key."
-    print_info "You will need to propose this address to be added to the validator set."
-else
-    # Import existing private key
-    print_info "Importing existing private key..."
-    read -p "Enter your private key (64 hex chars, no 0x prefix): " PRIVATE_HEX
-    
-    # Convert hex to raw 32-byte binary file (no newline)
-    printf '%s' "$PRIVATE_HEX" | xxd -r -p > /opt/besu/keys/nodekey
-    chmod 600 /opt/besu/keys/nodekey
-    
-    # Export the validator address and capture output to check for key generation
-    besu --node-private-key-file=/opt/besu/keys/nodekey public-key export-address > /tmp/besu_address.txt 2> /tmp/besu_import_log
-    VALIDATOR_ADDRESS=$(cat /tmp/besu_address.txt)
-    
-    # Export the public key
-    besu --node-private-key-file=/opt/besu/keys/nodekey public-key export --to=/opt/besu/keys/key.pub 2>> /tmp/besu_import_log
-    PUBLIC_KEY=$(cat /opt/besu/keys/key.pub)
-    
-    print_success "Imported private key"
-    print_info "Public Key: $PUBLIC_KEY"
-    
-    # Verify the key was imported correctly by checking if Besu generated a new key
-    if grep -q "Generated new secp256k1 public key" /tmp/besu_import_log 2>/dev/null; then
-        print_error "Key import failed! Besu generated a new key instead of using the imported one."
-        print_error "This suggests the private key format was incorrect."
-        exit 1
-    else
-        print_success "Key import verification successful"
-    fi
-    print_info "Validator Address: $VALIDATOR_ADDRESS"
-    print_info "You will need to propose this address to be added to the validator set."
-fi
+# Generate the key and export the public key in one command
+besu --data-path=/opt/besu/data \
+     --node-private-key-file=/opt/besu/keys/nodekey \
+     public-key export --to=/opt/besu/keys/key.pub
+
+# Backup the keys
+cp /opt/besu/keys/nodekey $BACKUP_DIR/
+cp /opt/besu/keys/key.pub $BACKUP_DIR/
+
+# Display the public key
+PUBLIC_KEY=$(cat /opt/besu/keys/key.pub)
+print_success "Generated new validator key"
+print_info "Public Key: $PUBLIC_KEY"
+
+# Export and display the validator address
+besu --node-private-key-file=/opt/besu/keys/nodekey \
+     public-key export-address --to=/opt/besu/keys/address.txt
+VALIDATOR_ADDRESS=$(cat /opt/besu/keys/address.txt)
+print_info "Validator Address: $VALIDATOR_ADDRESS"
+
+# Save address to backup
+echo $VALIDATOR_ADDRESS > $BACKUP_DIR/address.txt
+
+# Display the private key in hex format for the user
+PRIVATE_KEY_HEX=$(xxd -p /opt/besu/keys/nodekey | tr -d '\n')
+echo $PRIVATE_KEY_HEX > $BACKUP_DIR/nodekey.hex
+print_info "Your validator's private key (hex): $PRIVATE_KEY_HEX"
+print_info "Your private key has been backed up to: $BACKUP_DIR"
+print_info "IMPORTANT: Keep this directory secure! It contains your validator's private key."
+print_info "You will need to propose this address to be added to the validator set."
 
 # Create systemd service
 print_section "Creating Systemd Service"

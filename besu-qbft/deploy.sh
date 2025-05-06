@@ -116,7 +116,37 @@ mkdir -p /opt/besu/keys
 besu --data-path=/opt/besu/data public-key export --to=/tmp/dummy.pub 2>/tmp/key_gen.log
 
 # Find where the key was generated
-if [ -f "/opt/besu/key" ]; then
+if [ -f "/opt/besu/data/key" ]; then
+    # Copy the generated key to our desired location
+    cp /opt/besu/data/key /opt/besu/keys/key
+    chmod 600 /opt/besu/keys/key
+    
+    # Export the public key
+    besu --node-private-key-file=/opt/besu/keys/key public-key export --to=/opt/besu/keys/key.pub
+    
+    # Display the public key
+    PUBLIC_KEY=$(cat /opt/besu/keys/key.pub)
+    print_success "Generated new validator key"
+    print_info "Public Key: $PUBLIC_KEY"
+    
+    # Export and display the validator address
+    besu --node-private-key-file=/opt/besu/keys/key public-key export-address --to=/opt/besu/keys/address.txt
+    VALIDATOR_ADDRESS=$(cat /opt/besu/keys/address.txt)
+    print_info "Validator Address: $VALIDATOR_ADDRESS"
+    
+    # Save keys to backup
+    cp /opt/besu/keys/key "$BACKUP_DIR/"
+    cp /opt/besu/keys/key.pub "$BACKUP_DIR/"
+    echo "$VALIDATOR_ADDRESS" > "$BACKUP_DIR/address.txt"
+    
+    # Display the private key in hex format for the user
+    PRIVATE_KEY_HEX=$(xxd -p /opt/besu/keys/key | tr -d '\n')
+    echo "$PRIVATE_KEY_HEX" > "$BACKUP_DIR/nodekey.hex"
+    print_info "Your validator's private key (hex): $PRIVATE_KEY_HEX"
+    print_info "Your private key has been backed up to: $BACKUP_DIR"
+    print_info "IMPORTANT: Keep this directory secure! It contains your validator's private key."
+    print_info "You will need to propose this address to be added to the validator set."
+elif [ -f "/opt/besu/key" ]; then
     # Copy the generated key to our desired location
     cp /opt/besu/key /opt/besu/keys/key
     chmod 600 /opt/besu/keys/key

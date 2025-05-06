@@ -105,81 +105,69 @@ print_success "Copied static-nodes.json"
 # Handle validator keys
 print_section "Setting Up Validator Keys"
 
-if [ "$VALIDATOR_NUM" -le 5 ]; then
-    # For initial validators (1-5), use the existing keys
-    print_info "Using existing keys for initial Validator ${VALIDATOR_NUM}..."
-    if [ -d "Node-${VALIDATOR_NUM}/keys" ]; then
-        cp Node-${VALIDATOR_NUM}/keys/* /opt/besu/keys/
-        print_success "Copied existing keys for Validator ${VALIDATOR_NUM}"
-    else
-        print_error "Keys for Validator ${VALIDATOR_NUM} not found!"
-        exit 1
-    fi
-else
-    # For new validators (6+), ask if user wants to generate new keys or import existing
-    echo -e "${YELLOW}Do you want to:${NC}"
-    echo "1) Generate a new validator key (recommended)"
-    echo "2) Import an existing private key"
-    read -p "Enter your choice (1 or 2): " KEY_CHOICE
+# Ask if user wants to generate new keys or import existing
+echo -e "${YELLOW}Do you want to:${NC}"
+echo "1) Generate a new validator key (recommended)"
+echo "2) Import an existing private key"
+read -p "Enter your choice (1 or 2): " KEY_CHOICE
+
+if [ "$KEY_CHOICE" == "1" ]; then
+    # Generate a new private key
+    print_info "Generating new validator key..."
     
-    if [ "$KEY_CHOICE" == "1" ]; then
-        # Generate a new private key
-        print_info "Generating new keys for Validator ${VALIDATOR_NUM}..."
-        
-        # Create a secure backup directory
-        BACKUP_DIR="/root/validator-${VALIDATOR_NUM}-keys-backup"
-        mkdir -p $BACKUP_DIR
-        chmod 700 $BACKUP_DIR
-        
-        # Generate the key
-        besu --data-path=/opt/besu/data --node-private-key-file=/opt/besu/keys/nodekey
-        
-        # Export the public key
-        besu --node-private-key-file=/opt/besu/keys/nodekey public-key export --to=/opt/besu/keys/key.pub
-        
-        # Backup the keys
-        cp /opt/besu/keys/nodekey $BACKUP_DIR/
-        cp /opt/besu/keys/key.pub $BACKUP_DIR/
-        
-        # Display the public key
-        PUBLIC_KEY=$(cat /opt/besu/keys/key.pub)
-        print_success "Generated new validator key"
-        print_info "Public Key: $PUBLIC_KEY"
-        
-        # Export and display the validator address
-        besu --node-private-key-file=/opt/besu/keys/nodekey public-key export-address --to=/opt/besu/keys/address.txt
-        VALIDATOR_ADDRESS=$(cat /opt/besu/keys/address.txt)
-        print_info "Validator Address: $VALIDATOR_ADDRESS"
-        
-        # Save address to backup
-        echo $VALIDATOR_ADDRESS > $BACKUP_DIR/address.txt
-        
-        print_info "Your private key has been backed up to: $BACKUP_DIR"
-        print_info "IMPORTANT: Keep this directory secure! It contains your validator's private key."
-        print_info "You will need to propose this address to be added to the validator set."
-    else
-        # Import existing private key
-        print_info "Importing existing private key..."
-        read -p "Enter your private key (without 0x prefix): " PRIVATE_KEY
-        
-        # Save the private key
-        echo $PRIVATE_KEY > /opt/besu/keys/nodekey
-        chmod 600 /opt/besu/keys/nodekey
-        
-        # Export the public key
-        besu --node-private-key-file=/opt/besu/keys/nodekey public-key export --to=/opt/besu/keys/key.pub
-        
-        # Display the public key
-        PUBLIC_KEY=$(cat /opt/besu/keys/key.pub)
-        print_success "Imported private key"
-        print_info "Public Key: $PUBLIC_KEY"
-        
-        # Export and display the validator address
-        besu --node-private-key-file=/opt/besu/keys/nodekey public-key export-address --to=/opt/besu/keys/address.txt
-        VALIDATOR_ADDRESS=$(cat /opt/besu/keys/address.txt)
-        print_info "Validator Address: $VALIDATOR_ADDRESS"
-        print_info "You will need to propose this address to be added to the validator set."
-    fi
+    # Create a secure backup directory
+    BACKUP_DIR="/root/validator-${VALIDATOR_NUM}-keys-backup"
+    mkdir -p $BACKUP_DIR
+    chmod 700 $BACKUP_DIR
+    
+    # Generate the key
+    besu --data-path=/opt/besu/data --node-private-key-file=/opt/besu/keys/nodekey
+    
+    # Export the public key
+    besu --node-private-key-file=/opt/besu/keys/nodekey public-key export --to=/opt/besu/keys/key.pub
+    
+    # Backup the keys
+    cp /opt/besu/keys/nodekey $BACKUP_DIR/
+    cp /opt/besu/keys/key.pub $BACKUP_DIR/
+    
+    # Display the public key
+    PUBLIC_KEY=$(cat /opt/besu/keys/key.pub)
+    print_success "Generated new validator key"
+    print_info "Public Key: $PUBLIC_KEY"
+    
+    # Export and display the validator address
+    besu --node-private-key-file=/opt/besu/keys/nodekey public-key export-address --to=/opt/besu/keys/address.txt
+    VALIDATOR_ADDRESS=$(cat /opt/besu/keys/address.txt)
+    print_info "Validator Address: $VALIDATOR_ADDRESS"
+    
+    # Save address to backup
+    echo $VALIDATOR_ADDRESS > $BACKUP_DIR/address.txt
+    
+    print_info "Your private key has been backed up to: $BACKUP_DIR"
+    print_info "IMPORTANT: Keep this directory secure! It contains your validator's private key."
+    print_info "You will need to propose this address to be added to the validator set."
+else
+    # Import existing private key
+    print_info "Importing existing private key..."
+    read -p "Enter your private key (without 0x prefix): " PRIVATE_KEY
+    
+    # Save the private key
+    echo $PRIVATE_KEY > /opt/besu/keys/nodekey
+    chmod 600 /opt/besu/keys/nodekey
+    
+    # Export the public key
+    besu --node-private-key-file=/opt/besu/keys/nodekey public-key export --to=/opt/besu/keys/key.pub
+    
+    # Display the public key
+    PUBLIC_KEY=$(cat /opt/besu/keys/key.pub)
+    print_success "Imported private key"
+    print_info "Public Key: $PUBLIC_KEY"
+    
+    # Export and display the validator address
+    besu --node-private-key-file=/opt/besu/keys/nodekey public-key export-address --to=/opt/besu/keys/address.txt
+    VALIDATOR_ADDRESS=$(cat /opt/besu/keys/address.txt)
+    print_info "Validator Address: $VALIDATOR_ADDRESS"
+    print_info "You will need to propose this address to be added to the validator set."
 fi
 
 # Create systemd service
@@ -191,21 +179,13 @@ print_success "Created systemd service"
 # Add bootnodes parameter for non-bootnode validators
 if [ "$VALIDATOR_NUM" -ne 1 ]; then
     print_info "Configuring bootnode connection..."
-    # Get the enode URL of the bootnode (validator 1)
-    BOOTNODE_IP="167.86.95.117"
     
-    # Check if we have the bootnode public key
-    if [ -f "Node-1/keys/key.pub" ]; then
-        BOOTNODE_PUBKEY=$(cat Node-1/keys/key.pub | sed 's/^0x//')
-        BOOTNODE_ENODE="enode://${BOOTNODE_PUBKEY}@${BOOTNODE_IP}:30303"
-        
-        # Add the bootnode to the service file
-        sed -i "/--sync-mode=FULL/a --bootnodes=${BOOTNODE_ENODE} \\\\" /etc/systemd/system/besu-validator.service
-        print_success "Added bootnode configuration"
-    else
-        print_error "Bootnode public key not found! Continuing without bootnode configuration."
-        print_info "The validator will rely on static-nodes.json for peer discovery."
-    fi
+    # Use hardcoded bootnode enode URL for Validator 1
+    BOOTNODE_ENODE="enode://3cc9ca6ca6133511ee31ec7a079379b1a77defb0d098e8c9dd84b12b443287f78cbc92f61b7959a940759f24c7ef7fddc932f08337fdd603a2b6ac14a5b00e29@167.86.95.117:30303"
+    
+    # Add the bootnode to the service file
+    sed -i "/--sync-mode=FULL/a --bootnodes=${BOOTNODE_ENODE} \\\\" /etc/systemd/system/besu-validator.service
+    print_success "Added bootnode configuration"
 fi
 
 # Enable and start the service
@@ -220,12 +200,10 @@ print_success "Validator $VALIDATOR_NUM setup complete!"
 print_info "Check the status with: systemctl status besu-validator"
 print_info "View logs with: journalctl -u besu-validator -f"
 
-if [ "$VALIDATOR_NUM" -gt 5 ]; then
-    print_section "Next Steps"
-    print_info "Your validator is running but is not yet part of the validator set."
-    print_info "To add your validator to the network, you need to propose it using an existing validator:"
-    echo ""
-    echo "curl -X POST -H \"Content-Type: application/json\" --data '{\"jsonrpc\":\"2.0\",\"method\":\"qbft_proposeValidatorVote\",\"params\":[\"${VALIDATOR_ADDRESS}\", true],\"id\":1}' http://EXISTING_VALIDATOR_IP:8545"
-    echo ""
-    print_info "A majority of existing validators must execute this call for your validator to be added."
-fi
+print_section "Next Steps"
+print_info "Your validator is running but is not yet part of the validator set."
+print_info "To add your validator to the network, you need to propose it using an existing validator:"
+echo ""
+echo "curl -X POST -H \"Content-Type: application/json\" --data '{\"jsonrpc\":\"2.0\",\"method\":\"qbft_proposeValidatorVote\",\"params\":[\"${VALIDATOR_ADDRESS}\", true],\"id\":1}' http://EXISTING_VALIDATOR_IP:8545"
+echo ""
+print_info "A majority of existing validators must execute this call for your validator to be added."

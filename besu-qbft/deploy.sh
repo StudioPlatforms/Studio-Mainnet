@@ -151,8 +151,8 @@ else
     print_info "Importing existing private key..."
     read -p "Enter your private key (64 hex chars, no 0x prefix): " PRIVATE_HEX
     
-    # Convert hex to raw 32-byte binary and save it
-    printf "%s" "$PRIVATE_HEX" | xxd -r -p > /opt/besu/keys/nodekey
+    # Save the private key as plain hex string
+    echo "$PRIVATE_HEX" > /opt/besu/keys/nodekey
     chmod 600 /opt/besu/keys/nodekey
     
     # Export the public key and address in one command

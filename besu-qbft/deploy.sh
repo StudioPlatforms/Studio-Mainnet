@@ -120,11 +120,10 @@ if [ "$KEY_CHOICE" == "1" ]; then
     mkdir -p $BACKUP_DIR
     chmod 700 $BACKUP_DIR
     
-    # Generate the key
-    besu --data-path=/opt/besu/data --node-private-key-file=/opt/besu/keys/nodekey
-    
-    # Export the public key
-    besu --node-private-key-file=/opt/besu/keys/nodekey public-key export --to=/opt/besu/keys/key.pub
+    # Generate the key and export the public key in one command
+    besu --data-path=/opt/besu/data \
+         --node-private-key-file=/opt/besu/keys/nodekey \
+         public-key export --to=/opt/besu/keys/key.pub
     
     # Backup the keys
     cp /opt/besu/keys/nodekey $BACKUP_DIR/
@@ -136,7 +135,8 @@ if [ "$KEY_CHOICE" == "1" ]; then
     print_info "Public Key: $PUBLIC_KEY"
     
     # Export and display the validator address
-    besu --node-private-key-file=/opt/besu/keys/nodekey public-key export-address --to=/opt/besu/keys/address.txt
+    besu --node-private-key-file=/opt/besu/keys/nodekey \
+         public-key export-address --to=/opt/besu/keys/address.txt
     VALIDATOR_ADDRESS=$(cat /opt/besu/keys/address.txt)
     print_info "Validator Address: $VALIDATOR_ADDRESS"
     
@@ -155,8 +155,9 @@ else
     echo $PRIVATE_KEY > /opt/besu/keys/nodekey
     chmod 600 /opt/besu/keys/nodekey
     
-    # Export the public key
-    besu --node-private-key-file=/opt/besu/keys/nodekey public-key export --to=/opt/besu/keys/key.pub
+    # Export the public key and address in one command
+    besu --node-private-key-file=/opt/besu/keys/nodekey \
+         public-key export --to=/opt/besu/keys/key.pub
     
     # Display the public key
     PUBLIC_KEY=$(cat /opt/besu/keys/key.pub)
@@ -164,7 +165,8 @@ else
     print_info "Public Key: $PUBLIC_KEY"
     
     # Export and display the validator address
-    besu --node-private-key-file=/opt/besu/keys/nodekey public-key export-address --to=/opt/besu/keys/address.txt
+    besu --node-private-key-file=/opt/besu/keys/nodekey \
+         public-key export-address --to=/opt/besu/keys/address.txt
     VALIDATOR_ADDRESS=$(cat /opt/besu/keys/address.txt)
     print_info "Validator Address: $VALIDATOR_ADDRESS"
     print_info "You will need to propose this address to be added to the validator set."

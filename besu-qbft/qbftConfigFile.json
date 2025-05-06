@@ -1,0 +1,35 @@
+{
+  "genesis": {
+    "config": {
+      "chainId": 240241,
+      "berlinBlock": 0,
+      "londonBlock": 0,
+      "shanghaiTime": 0,
+      "cancunTime": 0,
+      "pragueTime": 0,
+      "pectraTime": 0,
+      "zeroBaseFee": true,
+      "contractSizeLimit": 1048576,
+      "initcodeSizeLimit": 1048576,
+      "evmStackSize": 2048,
+      "qbft": {
+        "blockperiodseconds": 5,
+        "epochlength": 30000,
+        "requesttimeoutseconds": 10
+      }
+    },
+    "gasLimit": "0x2FAF080",
+    "difficulty": "0x1",
+    "alloc": {
+      "856157992b74a799d7a09f611f7c78af4f26d309": {
+        "balance": "0x52B7D2DCC80CD2E4000000"
+      }
+    }
+  },
+  "blockchain": {
+    "nodes": {
+      "generate": true,
+      "count": 7
+    }
+  }
+}

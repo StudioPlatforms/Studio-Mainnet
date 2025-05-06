@@ -1,0 +1,35 @@
+{
+  "config": {
+    "chainId": 240241,
+    "berlinBlock": 0,
+    "londonBlock": 0,
+    "shanghaiTime": 0,
+    "cancunTime": 0,
+    "pragueTime": 0,
+    "pectraTime": 0,
+    "zeroBaseFee": true,
+    "contractSizeLimit": 1048576,
+    "initcodeSizeLimit": 1048576,
+    "evmStackSize": 2048,
+    "qbft": {
+      "blockperiodseconds": 5,
+      "epochlength": 30000,
+      "requesttimeoutseconds": 10,
+      "validators": [
+        "0x190c0eb630f451b18187aa0b8a054f46e6ba08f0",
+        "0x4857518a9c000e23ddf1e0c50786e34f46d11865",
+        "0x856157992b74a799d7a09f611f7c78af4f26d309",
+        "0xc64e733f5c92c70091688b342aecf96b8bc39b5b",
+        "0xe1cfcf5ff0b335a9108f8821c5b79f29b04e68cb"
+      ]
+    }
+  },
+  "gasLimit": "0x2FAF080",
+  "difficulty": "0x1",
+  "alloc": {
+    "856157992b74a799d7a09f611f7c78af4f26d309": {
+      "balance": "0x52B7D2DCC80CD2E4000000"
+    }
+  },
+  "extraData": "0xf88fa00000000000000000000000000000000000000000000000000000000000000000f86994190c0eb630f451b18187aa0b8a054f46e6ba08f0944857518a9c000e23ddf1e0c50786e34f46d1186594856157992b74a799d7a09f611f7c78af4f26d30994c64e733f5c92c70091688b342aecf96b8bc39b5b94e1cfcf5ff0b335a9108f8821c5b79f29b04e68cbc080c0"
+}

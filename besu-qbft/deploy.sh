@@ -152,22 +152,28 @@ else
     read -p "Enter your private key (64 hex chars, no 0x prefix): " PRIVATE_HEX
     
     # Convert hex to raw 32-byte binary file (no newline)
-    printf "%s" "$PRIVATE_HEX" | xxd -r -p > /opt/besu/keys/nodekey
+    printf '%s' "$PRIVATE_HEX" | xxd -r -p > /opt/besu/keys/nodekey
     chmod 600 /opt/besu/keys/nodekey
     
-    # Export the public key and address in one command
-    besu --node-private-key-file=/opt/besu/keys/nodekey \
-         public-key export --to=/opt/besu/keys/key.pub
+    # Export the validator address and capture output to check for key generation
+    besu --node-private-key-file=/opt/besu/keys/nodekey public-key export-address > /tmp/besu_address.txt 2> /tmp/besu_import_log
+    VALIDATOR_ADDRESS=$(cat /tmp/besu_address.txt)
     
-    # Display the public key
+    # Export the public key
+    besu --node-private-key-file=/opt/besu/keys/nodekey public-key export --to=/opt/besu/keys/key.pub 2>> /tmp/besu_import_log
     PUBLIC_KEY=$(cat /opt/besu/keys/key.pub)
+    
     print_success "Imported private key"
     print_info "Public Key: $PUBLIC_KEY"
     
-    # Export and display the validator address
-    besu --node-private-key-file=/opt/besu/keys/nodekey \
-         public-key export-address --to=/opt/besu/keys/address.txt
-    VALIDATOR_ADDRESS=$(cat /opt/besu/keys/address.txt)
+    # Verify the key was imported correctly by checking if Besu generated a new key
+    if grep -q "Generated new secp256k1 public key" /tmp/besu_import_log 2>/dev/null; then
+        print_error "Key import failed! Besu generated a new key instead of using the imported one."
+        print_error "This suggests the private key format was incorrect."
+        exit 1
+    else
+        print_success "Key import verification successful"
+    fi
     print_info "Validator Address: $VALIDATOR_ADDRESS"
     print_info "You will need to propose this address to be added to the validator set."
 fi
